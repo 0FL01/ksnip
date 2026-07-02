@@ -943,11 +943,11 @@ et la capture de l&apos;écran.</translation>
     </message>
     <message>
         <source>Crop</source>
-        <translation>Découper</translation>
+        <translation>Rogner</translation>
     </message>
     <message>
         <source>Crop Screen Capture</source>
-        <translation>Découper la capture d&apos;écran</translation>
+        <translation>Rogner la capture d&apos;écran</translation>
     </message>
 </context>
 <context>
