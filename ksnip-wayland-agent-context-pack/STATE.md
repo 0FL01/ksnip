@@ -37,17 +37,19 @@ record the exact evidence and smallest unlock.
   - Status: in_progress
   - Evidence: asynchronous probe/transport, bounded pipe reader, and portal
     fallback are implemented; focused test and full automated gates pass.
-    The user confirmed FullScreen and ActiveWindow captures. CurrentScreen,
-    selected-window, cancellation, and fallback observations remain pending.
-- R2 — RectArea uses the existing KSnip overlay and passes global logical
-  coordinates to ScreenShot2 `CaptureArea` after the overlay closes.
+    The user confirmed FullScreen, CurrentScreen, and ActiveWindow captures.
+    Selected-window, cancellation, and forced-fallback observations remain
+    pending outside the user's required three-mode workflow.
+- R2 — RectArea preserves focus-sensitive fullscreen content while using the
+  existing KSnip overlay and keyboard cancellation.
   - Primary evidence: focused coordinate/lifecycle tests and target-session
     capture observations.
-  - Status: in_progress
-  - Evidence: KDE reuses the existing transparent Wayland selector, rejects
-    empty selections, and dispatches its global logical rectangle to
-    `CaptureArea` after the queued close turn. Automated gates pass and the user
-    confirmed selected-area capture; cancellation/repetition remain pending.
+  - Status: verified
+  - Evidence: the required keyboard focus retracted fullscreen Yakuake and
+    Minecraft with the transparent selector. The user-approved KDE-only frozen
+    ScreenShot2 workspace background preserves both applications' content,
+    retains the existing selector and Escape cancellation, and was confirmed
+    live by the user as correct and substantially faster than Spectacle.
 - R3 — One resident GlobalShortcuts portal session activates the five required
   built-in capture actions exactly once and is recreated after settings change.
   - Primary evidence: focused state/mapping tests and target-session activation
@@ -55,17 +57,20 @@ record the exact evidence and smallest unlock.
   - Status: in_progress
   - Evidence: the serial Create/List/Bind/Close manager, stable five-ID mapping,
     safe preferred-trigger conversion, and enabled/dirty recreation lifecycle
-    are implemented. Focused D-Bus type/trigger tests and full automated gates
-    pass, but the user reports that configured shortcuts produce no activation.
+    are implemented. Runtime tracing proved KGlobalAccel -> portal Activated ->
+    KSnip -> ScreenShot2. The candidate registers all five IDs and exposes
+    portal v2 `ConfigureShortcuts`; after assignment in KDE, the user's three
+    required bindings work globally and persist across a clean KSnip restart.
 - R4 — The final candidate installs safely below `~/.local` with stable desktop
   identity, absolute `Exec`, restricted-interface metadata, and reversible
   uninstall behavior.
   - Primary evidence: installer sentinel round-trip and installed launch.
-  - Status: in_progress
+  - Status: verified
   - Evidence: shell/desktop/checksum gates, a temporary-HOME replacement and
     backup/restore sentinel round-trip, and installation of the byte-identical
-    `dist/ksnip` candidate under `/home/stfu/.local` pass. Desktop launch and
-    post-restart native capture remain pending user verification.
+    `dist/ksnip` candidate under `/home/stfu/.local` pass. Desktop launch,
+    process identity, clean restart, native capture, and shortcut persistence
+    were verified in the target session.
 - R5 — The immutable installed candidate passes mandatory build, capture,
   shortcut, responsiveness, repetition, and fallback checks, and `dist/`
   contains every required artifact.
@@ -106,6 +111,10 @@ record the exact evidence and smallest unlock.
 - Allowed artifacts: one small ScreenShot2 helper, one small Wayland portal
   shortcut manager, focused tests, mandatory delivery files, and one local
   checksum-only installer ownership marker required for reversible uninstall.
+- Allowed RectArea exception: KDE native RectArea may take one ScreenShot2
+  workspace image before activating the existing selector and crop that frozen
+  image locally. This exception is limited to preserving focus-sensitive
+  fullscreen content and does not change generic Wayland or GNOME behavior.
 - Forbidden expansion: new dependency, service, daemon, persistent state,
   generic transport framework, public API redesign, or unrelated refactor.
 
@@ -123,23 +132,24 @@ record the exact evidence and smallest unlock.
 
 ## Current checkpoint
 
-- Phase: T05 — Target-session verification and delivery closure
-- Closes: R1-R5
-- Smallest next action: reproduce the missing GlobalShortcuts activation and
-  identify the first failed portal lifecycle transition before changing code.
-- Expected evidence: portal request/session trace or exact runtime warning that
-  distinguishes setup failure from activation filtering.
-- Stop or replan if: a live failure identifies a concrete in-scope defect; fix
-  only that defect, rebuild/reinstall, and repeat affected evidence.
+- Phase: T05 — Residual acceptance evidence
+- Closes: R1, R3, and R5
+- Smallest next action: retain the user-approved installed candidate; run the
+  remaining selected-window, forced-fallback, repetition, and quantitative
+  latency checks only if full context-pack closure resumes.
+- Expected evidence: the remaining mandatory observations recorded in
+  `test-report.md`, without changing the accepted capture implementation.
+- Stop or replan if: a remaining check reproduces a failure in an explicit
+  required outcome; do not add speculative hardening or unrelated cleanup.
 
 ## Completed
 
 - [x] Baseline build
 - [x] D-Bus probes
 - [x] ScreenShot2 core (automated evidence; live verification pending)
-- [x] Rectangular area (automated evidence; live verification pending)
-- [x] Wayland global shortcuts (automated evidence; live verification pending)
-- [x] User-local installer (automated evidence; desktop launch pending)
+- [x] Rectangular area (automated and live evidence)
+- [x] Wayland global shortcuts (automated and three user-required live bindings)
+- [x] User-local installer (automated and live launch/restart evidence)
 - [ ] Acceptance tests
 - [x] `dist/` delivery (live report pending)
 
@@ -232,10 +242,11 @@ PASS: exact candidate installed with absolute Exec and matching CLI symlink.
 
 ## Blockers
 
-R3 live blocker: configured Wayland shortcuts produce no action, and no KSnip
-GlobalShortcuts session is currently visible on the portal object tree. Exact
-failed lifecycle transition is not yet known. Capture paths confirmed by the
-user remain working.
+R3 requires user authorization: the live KSnip portal session and downstream
+activation path work, but KDE persisted the three existing actions with active
+binding `none` and only default suggestions. The standard portal cannot assign
+physical keys silently. The newly installed candidate must be restarted and its
+explicit Configure Global Shortcuts action completed by the user.
 
 ## Material decisions
 
@@ -249,6 +260,14 @@ user remain working.
   state file inside its dedicated `~/.local/libexec/ksnip-wayland` directory;
   this is the minimum state needed to avoid deleting or overwriting modified
   user files.
+- 2026-07-26: Recover empty KDE shortcut assignments only through an explicit
+  portal v2 `ConfigureShortcuts` user action. Do not parse localized trigger
+  descriptions, auto-open configuration, or mutate KGlobalAccel directly.
+- 2026-07-26: User chose a frozen ScreenShot2 workspace image for KDE RectArea
+  after live evidence showed that keyboard focus necessarily retracts Yakuake
+  and minimizes fullscreen Minecraft. This narrowly supersedes the original
+  no-workspace-crop constraint for KDE RectArea only; generic/GNOME paths and
+  the existing selector remain unchanged.
 
 ## Checkpoint history
 
@@ -286,6 +305,27 @@ user remain working.
 - 2026-07-26: User live check confirmed FullScreen, RectArea, and ActiveWindow.
   Global shortcuts do not activate and the portal exposes no KSnip session;
   diagnosis of the first failed setup transition is the current checkpoint.
+- 2026-07-26: R3 diagnosis found one live portal session and an active KDE
+  component. Programmatic `capture.current_screen` produced one portal
+  `Activated` and one ScreenShot2 `CaptureActiveScreen`; physical keys failed
+  because KGlobalAccel stored active bindings as `none`. Added an explicit
+  portal v2 configuration action and retained all five mandatory IDs even when
+  no preferred trigger is configured. The first unconstrained concurrent build
+  was OOM-killed; sequential `--parallel 2` application/test builds, all 13
+  tests, diff check, delivery checksum, and byte-identical user install pass.
+- 2026-07-26: After KDE assigned the three user-required physical shortcuts,
+  RectArea, CurrentScreen, and ActiveWindow worked globally and survived a clean
+  KSnip restart. Fullscreen Yakuake and Minecraft then proved that activating
+  the transparent RectArea selector removes focus-sensitive source content.
+- 2026-07-26: Implemented the user-approved KDE-only frozen RectArea path: one
+  ScreenShot2 workspace image is shown by the existing selector and cropped
+  locally after selection. Sequential `--parallel 2` application/test builds
+  and `ctest -j1` pass all 13 tests; installed fullscreen retest is next.
+- 2026-07-26: User confirmed the installed frozen-background RectArea under
+  fullscreen Yakuake and Minecraft, including the requested selector behavior;
+  all required workflows now behave correctly and feel substantially faster
+  than Spectacle. R2 and R4 are verified; broader T05 stress/fallback evidence
+  remains pending.
 
 ## Completion
 

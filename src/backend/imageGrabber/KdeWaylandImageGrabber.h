@@ -66,13 +66,20 @@ private:
 
 	WaylandSnippingArea *mSnippingArea;
 	KWinScreenShot2Client mScreenShot2Client;
+	KWinScreenShot2Client mRectAreaBackgroundClient;
 	WaylandImageGrabber mPortalGrabber;
 	Backend mBackend;
 	QList<DeferredCapture> mDeferredCaptures;
+	QList<DeferredCapture> mRectAreaCaptures;
 	QList<CaptureRequest> mPortalRequests;
+	bool mRectAreaCaptureActive;
 	bool mPortalBusy;
 
 	KdeWaylandImageGrabber(WaylandSnippingArea *snippingArea, const QSharedPointer<IConfig> &config);
+	void queueRectAreaCapture(bool captureCursor, int delay);
+	void processNextRectAreaCapture();
+	void finishRectAreaSelection();
+	void rectAreaCaptureFinished();
 	void dispatch(const CaptureRequest &request);
 	void dispatchScreenShot2(const CaptureRequest &request);
 	void queuePortal(const CaptureRequest &request);

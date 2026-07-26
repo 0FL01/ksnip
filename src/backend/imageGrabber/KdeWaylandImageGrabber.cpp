@@ -30,6 +30,7 @@ KdeWaylandImageGrabber::KdeWaylandImageGrabber(WaylandSnippingArea *snippingArea
 	mSnippingArea(snippingArea),
 	mPortalGrabber(config),
 	mBackend(Backend::Pending),
+	mRectAreaCaptureActive(false),
 	mPortalBusy(false)
 {
 	addSupportedCaptureMode(CaptureModes::RectArea);
@@ -69,6 +70,31 @@ KdeWaylandImageGrabber::KdeWaylandImageGrabber(WaylandSnippingArea *snippingArea
 		qWarning("KWin ScreenShot2 capture failed: %s", qPrintable(error));
 		emit canceled();
 	});
+	connect(&mRectAreaBackgroundClient, &KWinScreenShot2Client::imageReady, this, [this](const QImage &image) {
+		auto background = QPixmap::fromImage(image);
+		if (background.isNull()) {
+			qWarning("Failed to create a pixmap from the ScreenShot2 RectArea background");
+			rectAreaCaptureFinished();
+			emit canceled();
+			return;
+		}
+		mSnippingArea->showWithBackground(background);
+	});
+	connect(&mRectAreaBackgroundClient, &KWinScreenShot2Client::canceled, this, [this] {
+		rectAreaCaptureFinished();
+		emit canceled();
+	});
+	connect(&mRectAreaBackgroundClient, &KWinScreenShot2Client::failed, this, [this](const QString &error) {
+		qWarning("KWin ScreenShot2 RectArea background capture failed: %s", qPrintable(error));
+		rectAreaCaptureFinished();
+		emit canceled();
+	});
+	connect(mSnippingArea, &WaylandSnippingArea::canceled, this, [this] {
+		if (mRectAreaCaptureActive) {
+			rectAreaCaptureFinished();
+		}
+	});
+	connect(mSnippingArea, &WaylandSnippingArea::finished, this, &KdeWaylandImageGrabber::finishRectAreaSelection);
 	connect(&mPortalGrabber, &WaylandImageGrabber::finished, this, [this](const CaptureDto &capture) {
 		portalRequestFinished();
 		emit finished(capture);
@@ -89,7 +115,7 @@ void KdeWaylandImageGrabber::grabImage(CaptureModes captureMode, bool captureCur
 	}
 
 	if (captureMode == CaptureModes::RectArea && mBackend == Backend::ScreenShot2) {
-		AbstractRectAreaImageGrabber::grabImage(captureMode, captureCursor, delay);
+		queueRectAreaCapture(captureCursor, delay);
 	} else {
 		AbstractImageGrabber::grabImage(captureMode, captureCursor, delay);
 	}
@@ -98,7 +124,7 @@ void KdeWaylandImageGrabber::grabImage(CaptureModes captureMode, bool captureCur
 void KdeWaylandImageGrabber::grab()
 {
 	CaptureRequest request { captureMode(), isCaptureCursorEnabled(), QRect() };
-	if (request.mode == CaptureModes::RectArea) {
+	if (request.mode == CaptureModes::RectArea && mBackend == Backend::ScreenShot2) {
 		request.area = mSnippingArea->selectedLogicalRectArea();
 		if (!request.area.isValid()) {
 			emit canceled();
@@ -162,6 +188,50 @@ bool KdeWaylandImageGrabber::isSnippingAreaBackgroundTransparent() const
 CursorDto KdeWaylandImageGrabber::getCursorWithPosition() const
 {
 	return {};
+}
+
+void KdeWaylandImageGrabber::queueRectAreaCapture(bool captureCursor, int delay)
+{
+	mRectAreaCaptures.append({ CaptureModes::RectArea, captureCursor, delay });
+	processNextRectAreaCapture();
+}
+
+void KdeWaylandImageGrabber::processNextRectAreaCapture()
+{
+	if (mRectAreaCaptureActive || mRectAreaCaptures.isEmpty()) {
+		return;
+	}
+
+	mRectAreaCaptureActive = true;
+	auto request = mRectAreaCaptures.takeFirst();
+	QTimer::singleShot(request.delay, this, [this, captureCursor = request.captureCursor] {
+		mRectAreaBackgroundClient.captureWorkspace(captureCursor);
+	});
+}
+
+void KdeWaylandImageGrabber::finishRectAreaSelection()
+{
+	if (!mRectAreaCaptureActive) {
+		return;
+	}
+
+	mCaptureRect = selectedSnippingAreaRect();
+	auto capture = CaptureDto(getScreenshotFromBackground());
+	rectAreaCaptureFinished();
+	if (!capture.isValid()) {
+		qWarning("Failed to crop the frozen ScreenShot2 RectArea background");
+		emit canceled();
+		return;
+	}
+	emit finished(capture);
+}
+
+void KdeWaylandImageGrabber::rectAreaCaptureFinished()
+{
+	mRectAreaCaptureActive = false;
+	QTimer::singleShot(0, this, [this] {
+		processNextRectAreaCapture();
+	});
 }
 
 void KdeWaylandImageGrabber::queuePortal(const CaptureRequest &request)
