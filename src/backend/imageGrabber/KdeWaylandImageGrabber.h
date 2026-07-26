@@ -20,35 +20,64 @@
 #ifndef KSNIP_KDEWAYLANDIMAGEGRABBER_H
 #define KSNIP_KDEWAYLANDIMAGEGRABBER_H
 
-#include <QtDBus/QDBusInterface>
-#include <QtDBus/QDBusConnection>
-#include <QtDBus/QDBusPendingCall>
-#include <QtDBus/QDBusPendingReply>
-#include <QtDBus/QDBusUnixFileDescriptor>
+#include <QList>
+#include <QTimer>
 
-#include <QtConcurrent/QtConcurrent>
-#include <QFutureWatcher>
-#include <qplatformdefs.h>
+#include "AbstractRectAreaImageGrabber.h"
+#include "KWinScreenShot2Client.h"
+#include "WaylandImageGrabber.h"
+#include "src/gui/snippingArea/WaylandSnippingArea.h"
 
-#include <errno.h>
-
-#include "AbstractImageGrabber.h"
-
-class KdeWaylandImageGrabber : public AbstractImageGrabber
+class KdeWaylandImageGrabber : public AbstractRectAreaImageGrabber
 {
 public:
-    explicit KdeWaylandImageGrabber(const QSharedPointer<IConfig> &config);
+	explicit KdeWaylandImageGrabber(const QSharedPointer<IConfig> &config);
 	~KdeWaylandImageGrabber() override = default;
+	void grabImage(CaptureModes captureMode, bool captureCursor, int delay) override;
+	QRect fullScreenRect() const override;
+	QRect activeWindowRect() const override;
 
 protected:
 	void grab() override;
+	bool isSnippingAreaBackgroundTransparent() const override;
+	CursorDto getCursorWithPosition() const override;
 
 private:
-    void startReadImage(int readPipe);
-    template<typename T>
-    void prepareDBus(const QString& mode, T mask);
-    template<typename T>
-    void callDBus(int writeFd, const QString& mode, T mask);
+	enum class Backend
+	{
+		Pending,
+		ScreenShot2,
+		Portal
+	};
+
+	struct CaptureRequest
+	{
+		CaptureModes mode;
+		bool captureCursor;
+		QRect area;
+	};
+
+	struct DeferredCapture
+	{
+		CaptureModes mode;
+		bool captureCursor;
+		int delay;
+	};
+
+	WaylandSnippingArea *mSnippingArea;
+	KWinScreenShot2Client mScreenShot2Client;
+	WaylandImageGrabber mPortalGrabber;
+	Backend mBackend;
+	QList<DeferredCapture> mDeferredCaptures;
+	QList<CaptureRequest> mPortalRequests;
+	bool mPortalBusy;
+
+	KdeWaylandImageGrabber(WaylandSnippingArea *snippingArea, const QSharedPointer<IConfig> &config);
+	void dispatch(const CaptureRequest &request);
+	void dispatchScreenShot2(const CaptureRequest &request);
+	void queuePortal(const CaptureRequest &request);
+	void processNextPortalRequest();
+	void portalRequestFinished();
 };
 
 #endif // KSNIP_KDEWAYLANDIMAGEGRABBER_H

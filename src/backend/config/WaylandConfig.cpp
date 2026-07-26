@@ -36,16 +36,6 @@ bool WaylandConfig::freezeImageWhileSnippingEnabled() const
 	return false;
 }
 
-bool WaylandConfig::isGlobalHotKeysEnabledReadOnly() const
-{
-	return true;
-}
-
-bool WaylandConfig::globalHotKeysEnabled() const
-{
-	return false;
-}
-
 bool WaylandConfig::isSnippingAreaMagnifyingGlassEnabledReadOnly() const
 {
 	return true;

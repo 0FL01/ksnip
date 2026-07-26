@@ -188,6 +188,7 @@ elseif (UNIX)
                 ${CMAKE_SOURCE_DIR}/src/backend/imageGrabber/X11ImageGrabber.cpp
                 ${CMAKE_SOURCE_DIR}/src/backend/imageGrabber/GnomeX11ImageGrabber.cpp
                 ${CMAKE_SOURCE_DIR}/src/backend/imageGrabber/KdeWaylandImageGrabber.cpp
+                ${CMAKE_SOURCE_DIR}/src/backend/imageGrabber/KWinScreenShot2Client.cpp
                 ${CMAKE_SOURCE_DIR}/src/backend/imageGrabber/X11Wrapper.cpp
                 ${CMAKE_SOURCE_DIR}/src/backend/imageGrabber/GnomeX11Wrapper.cpp
                 ${CMAKE_SOURCE_DIR}/src/backend/imageGrabber/GnomeWaylandImageGrabber.cpp
@@ -200,6 +201,7 @@ elseif (UNIX)
                 ${CMAKE_SOURCE_DIR}/src/gui/snippingArea/WaylandSnippingArea.cpp
                 ${CMAKE_SOURCE_DIR}/src/gui/globalHotKeys/keyHandler/X11KeyHandler.cpp
                 ${CMAKE_SOURCE_DIR}/src/gui/globalHotKeys/KeySequenceToX11KeyCodeTranslator.cpp
+				${CMAKE_SOURCE_DIR}/src/gui/globalHotKeys/WaylandGlobalShortcutManager.cpp
                 ${CMAKE_SOURCE_DIR}/src/gui/globalHotKeys/X11ErrorLogger.cpp
                 ${CMAKE_SOURCE_DIR}/src/gui/notificationService/FreeDesktopNotificationService.cpp
                 ${CMAKE_SOURCE_DIR}/src/gui/notificationService/KdeDesktopNotificationService.cpp
@@ -277,7 +279,8 @@ if (APPLE)
                 )
 elseif (UNIX)
         list(APPEND DEPENDENCY_LIBRARIES
-                Qt${QT_MAJOR_VERSION}::DBus
+				 Qt${QT_MAJOR_VERSION}::DBus
+				 Qt${QT_MAJOR_VERSION}::Concurrent
                 kImageAnnotator::kImageAnnotator
                 kColorPicker::kColorPicker
                 XCB::XFIXES

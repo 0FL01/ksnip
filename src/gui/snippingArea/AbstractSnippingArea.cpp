@@ -271,9 +271,15 @@ void AbstractSnippingArea::updateCapturedArea(const QRectF &rect)
 
 void AbstractSnippingArea::finishSelection()
 {
+	auto selectedArea = selectedRectArea();
+	if (!selectedArea.isValid()) {
+		cancelSelection();
+		return;
+	}
+
 	stopTimeout();
 	closeSnippingArea();
-	mConfig->setLastRectArea(selectedRectArea());
+	mConfig->setLastRectArea(selectedArea);
 	emit finished();
 }
 

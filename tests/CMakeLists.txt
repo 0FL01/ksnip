@@ -5,6 +5,7 @@ enable_testing()
 set(UNITTEST_SRC
 	${CMAKE_CURRENT_SOURCE_DIR}/backend/recentImages/RecentImagesPathStoreTests.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/backend/commandLine/CommandLineCaptureHandlerTests.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/backend/imageGrabber/KWinScreenShot2ClientTests.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/common/helper/PathHelperTests.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/common/platform/PlatformCheckerTests.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/gui/actions/ActionTests.cpp
@@ -14,6 +15,10 @@ set(UNITTEST_SRC
 	${CMAKE_CURRENT_SOURCE_DIR}/gui/operations/DeleteImageOperationTests.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/gui/operations/LoadImageFromFileOperationTests.cpp
 	)
+
+if (UNIX AND NOT APPLE)
+	list(APPEND UNITTEST_SRC ${CMAKE_CURRENT_SOURCE_DIR}/gui/globalHotKeys/WaylandGlobalShortcutManagerTests.cpp)
+endif ()
 
 set(TESTUTILS_SRC
 	${CMAKE_CURRENT_SOURCE_DIR}/utils/TestRunner.h
@@ -51,6 +56,7 @@ if (APPLE)
 elseif (UNIX)
 	target_link_libraries(KSNIP_STATIC
 		Qt${QT_MAJOR_VERSION}::DBus
+		Qt${QT_MAJOR_VERSION}::Concurrent
 		XCB::XFIXES
 		)
 	if (BUILD_WITH_QT6)

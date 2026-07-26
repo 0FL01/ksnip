@@ -1,0 +1,41 @@
+context_pack_version: 1
+created_utc: 2026-07-26T00:00:00Z
+
+target:
+  os_family: Fedora Linux
+  architecture: x86_64
+  desktop: KDE Plasma
+  desktop_version: 6.7.3
+  session: Wayland
+  qt_major: 6
+  cpu: AMD Ryzen 7 7840HS
+
+mandatory_capture_modes:
+  - rectangular_area
+  - full_workspace
+  - active_window
+  - selected_window
+  - active_screen
+
+native_capture:
+  service: org.kde.KWin.ScreenShot2
+  path: /org/kde/KWin/ScreenShot2
+  interface: org.kde.KWin.ScreenShot2
+
+wayland_shortcuts:
+  service: org.freedesktop.portal.Desktop
+  path: /org/freedesktop/portal/desktop
+  interface: org.freedesktop.portal.GlobalShortcuts
+
+delivery:
+  directory: dist
+  requires_binary: true
+  requires_user_local_installer: true
+  requires_sha256: true
+  requires_test_report: true
+  requires_patch: true
+
+principles:
+  - KISS
+  - YAGNI
+  - Pareto

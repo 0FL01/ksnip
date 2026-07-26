@@ -28,6 +28,11 @@ QRect WaylandSnippingArea::selectedRectArea() const
 	return mHdpiScaler.scale(getCaptureArea());
 }
 
+QRect WaylandSnippingArea::selectedLogicalRectArea() const
+{
+	return getGlobalCaptureArea();
+}
+
 void WaylandSnippingArea::grabKeyboardFocus()
 {
 	QApplication::setActiveWindow(this);

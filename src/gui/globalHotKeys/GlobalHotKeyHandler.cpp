@@ -22,12 +22,26 @@
 GlobalHotKeyHandler::GlobalHotKeyHandler(
 		const QList<CaptureModes> &supportedCaptureModes,
 		const QSharedPointer<IPlatformChecker> &platformChecker,
-		const QSharedPointer<IConfig> &config) :
-	mSupportedCaptureModes(supportedCaptureModes),
+		const QSharedPointer<IConfig> &config,
+		QObject *parent) :
+	QObject(parent),
 	mConfig(config),
-	mPlatformChecker(platformChecker)
+	mSupportedCaptureModes(supportedCaptureModes),
+	mPlatformChecker(platformChecker),
+#ifdef Q_OS_LINUX
+	mWaylandShortcutManager(nullptr),
+#endif
+	mEnabled(true),
+	mHotKeysDirty(true)
 {
-	connect(mConfig.data(), &IConfig::hotKeysChanged, this, &GlobalHotKeyHandler::setupHotKeys);
+#ifdef Q_OS_LINUX
+	if(mPlatformChecker->isWayland()) {
+		mWaylandShortcutManager = new WaylandGlobalShortcutManager(this);
+		connect(mWaylandShortcutManager, &WaylandGlobalShortcutManager::activated, this, &GlobalHotKeyHandler::captureTriggered);
+		connect(QCoreApplication::instance(), &QCoreApplication::aboutToQuit, mWaylandShortcutManager, &WaylandGlobalShortcutManager::stop);
+	}
+#endif
+	connect(mConfig.data(), &IConfig::hotKeysChanged, this, &GlobalHotKeyHandler::hotKeysChanged);
 
 	setupHotKeys();
 }
@@ -40,24 +54,47 @@ GlobalHotKeyHandler::~GlobalHotKeyHandler()
 void GlobalHotKeyHandler::removeHotKeys()
 {
 	mGlobalHotKeys.clear();
+#ifdef Q_OS_LINUX
+	if(mWaylandShortcutManager != nullptr) {
+		mWaylandShortcutManager->stop();
+	}
+#endif
 }
 
 void GlobalHotKeyHandler::setupHotKeys()
 {
+	mHotKeysDirty = false;
 	removeHotKeys();
-	if(mConfig->globalHotKeysEnabled()) {
-		createHotKey(mConfig->rectAreaHotKey(), CaptureModes::RectArea);
-		createHotKey(mConfig->lastRectAreaHotKey(), CaptureModes::LastRectArea);
-		createHotKey(mConfig->fullScreenHotKey(), CaptureModes::FullScreen);
-		createHotKey(mConfig->currentScreenHotKey(), CaptureModes::CurrentScreen);
-		createHotKey(mConfig->activeWindowHotKey(), CaptureModes::ActiveWindow);
-		createHotKey(mConfig->windowUnderCursorHotKey(), CaptureModes::WindowUnderCursor);
-        createHotKey(mConfig->portalHotKey(), CaptureModes::Portal);
+	if(!mEnabled || !mConfig->globalHotKeysEnabled()) {
+		return;
+	}
 
-		auto actions = mConfig->actions();
-		for (const auto& action : actions) {
-			createHotKey(action);
-		}
+#ifdef Q_OS_LINUX
+	if(mWaylandShortcutManager != nullptr) {
+		setupWaylandHotKeys();
+		return;
+	}
+#endif
+
+	createHotKey(mConfig->rectAreaHotKey(), CaptureModes::RectArea);
+	createHotKey(mConfig->lastRectAreaHotKey(), CaptureModes::LastRectArea);
+	createHotKey(mConfig->fullScreenHotKey(), CaptureModes::FullScreen);
+	createHotKey(mConfig->currentScreenHotKey(), CaptureModes::CurrentScreen);
+	createHotKey(mConfig->activeWindowHotKey(), CaptureModes::ActiveWindow);
+	createHotKey(mConfig->windowUnderCursorHotKey(), CaptureModes::WindowUnderCursor);
+	createHotKey(mConfig->portalHotKey(), CaptureModes::Portal);
+
+	auto actions = mConfig->actions();
+	for (const auto& action : actions) {
+		createHotKey(action);
+	}
+}
+
+void GlobalHotKeyHandler::hotKeysChanged()
+{
+	mHotKeysDirty = true;
+	if(mEnabled) {
+		setupHotKeys();
 	}
 }
 
@@ -85,9 +122,39 @@ void GlobalHotKeyHandler::createHotKey(const Action &action)
 
 void GlobalHotKeyHandler::setEnabled(bool enabled)
 {
-	if(enabled) {
-		setupHotKeys();
-	} else {
+	if(mEnabled == enabled) {
+		return;
+	}
+
+	mEnabled = enabled;
+	if(!enabled) {
+		mHotKeysDirty = true;
 		removeHotKeys();
+	} else if(mHotKeysDirty) {
+		setupHotKeys();
 	}
 }
+
+#ifdef Q_OS_LINUX
+void GlobalHotKeyHandler::setupWaylandHotKeys()
+{
+	QList<WaylandGlobalShortcutManager::Shortcut> shortcuts;
+	addWaylandShortcut(shortcuts, QLatin1String("capture.rect_area"), tr("Capture rectangular area"), mConfig->rectAreaHotKey(), CaptureModes::RectArea);
+	addWaylandShortcut(shortcuts, QLatin1String("capture.full_screen"), tr("Capture full screen"), mConfig->fullScreenHotKey(), CaptureModes::FullScreen);
+	addWaylandShortcut(shortcuts, QLatin1String("capture.current_screen"), tr("Capture current screen"), mConfig->currentScreenHotKey(), CaptureModes::CurrentScreen);
+	addWaylandShortcut(shortcuts, QLatin1String("capture.active_window"), tr("Capture active window"), mConfig->activeWindowHotKey(), CaptureModes::ActiveWindow);
+	addWaylandShortcut(shortcuts, QLatin1String("capture.select_window"), tr("Select window to capture"), mConfig->windowUnderCursorHotKey(), CaptureModes::WindowUnderCursor);
+	mWaylandShortcutManager->start(shortcuts);
+}
+
+void GlobalHotKeyHandler::addWaylandShortcut(QList<WaylandGlobalShortcutManager::Shortcut> &shortcuts,
+													 const QString &id,
+													 const QString &description,
+													 const QKeySequence &keySequence,
+													 CaptureModes captureMode) const
+{
+	if(mSupportedCaptureModes.contains(captureMode) && !keySequence.isEmpty()) {
+		shortcuts.append({ id, description, keySequence, captureMode });
+	}
+}
+#endif

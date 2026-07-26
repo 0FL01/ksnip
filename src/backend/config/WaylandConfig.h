@@ -32,9 +32,6 @@ public:
 	bool isFreezeImageWhileSnippingEnabledReadOnly() const override;
 	bool freezeImageWhileSnippingEnabled() const override;
 
-	bool isGlobalHotKeysEnabledReadOnly() const override;
-	bool globalHotKeysEnabled() const override;
-
 	bool isSnippingAreaMagnifyingGlassEnabledReadOnly() const override;
 	bool snippingAreaMagnifyingGlassEnabled() const override;
 

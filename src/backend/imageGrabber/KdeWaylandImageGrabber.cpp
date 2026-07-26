@@ -17,105 +17,174 @@
  * Boston, MA 02110-1301, USA.
  */
 
-/*
- * Most part of this class comes from the KWinWaylandImageGrabber implementation
- * from KDE Spectacle, implemented by Martin Graesslin <mgraesslin@kde.org>
- */
-
 #include "KdeWaylandImageGrabber.h"
 
-static int readData(int fd, QByteArray& data)
+KdeWaylandImageGrabber::KdeWaylandImageGrabber(const QSharedPointer<IConfig> &config) :
+	KdeWaylandImageGrabber(new WaylandSnippingArea(config), config)
 {
-    // implementation based on QtWayland file qwaylanddataoffer.cpp
-    char buffer[4096];
-    int retryCount = 0;
-    int n;
-    while (true) {
-        n = QT_READ(fd, buffer, sizeof buffer);
-        // give user 30 sec to click a window, afterwards considered as error
-        if (n == -1 && (errno == EAGAIN) && ++retryCount < 30000) {
-            usleep(1000);
-        } else {
-            break;
-        }
-    }
-    if (n > 0) {
-        data.append(buffer, n);
-        n = readData(fd, data);
-    }
-    return n;
 }
 
-static QImage readImage(int pipeFd)
-{
-    QByteArray content;
-    if (readData(pipeFd, content) != 0) {
-        close(pipeFd);
-        return QImage();
-    }
-    close(pipeFd);
-    QDataStream dataStream(content);
-    QImage image;
-    dataStream >> image;
-    return image;
-};
-
-KdeWaylandImageGrabber::KdeWaylandImageGrabber(const QSharedPointer<IConfig> &config) : AbstractImageGrabber(config)
+KdeWaylandImageGrabber::KdeWaylandImageGrabber(WaylandSnippingArea *snippingArea,
+																					const QSharedPointer<IConfig> &config) :
+	AbstractRectAreaImageGrabber(snippingArea, config),
+	mSnippingArea(snippingArea),
+	mPortalGrabber(config),
+	mBackend(Backend::Pending),
+	mPortalBusy(false)
 {
 	addSupportedCaptureMode(CaptureModes::RectArea);
 	addSupportedCaptureMode(CaptureModes::ActiveWindow);
 	addSupportedCaptureMode(CaptureModes::WindowUnderCursor);
 	addSupportedCaptureMode(CaptureModes::CurrentScreen);
 	addSupportedCaptureMode(CaptureModes::FullScreen);
+
+	connect(&mScreenShot2Client, &KWinScreenShot2Client::probeFinished, this,
+			[this](bool available, uint version, const QString &error) {
+				if (available) {
+					qInfo("Using KWin ScreenShot2 API version %u", version);
+					mBackend = Backend::ScreenShot2;
+				} else {
+					qWarning("KWin ScreenShot2 is unavailable, using the Screenshot portal: %s",
+							 qPrintable(error));
+					mBackend = Backend::Portal;
+				}
+
+				auto requests = mDeferredCaptures;
+				mDeferredCaptures.clear();
+				for (const auto &request : requests) {
+					grabImage(request.mode, request.captureCursor, request.delay);
+				}
+			});
+	connect(&mScreenShot2Client, &KWinScreenShot2Client::imageReady, this, [this](const QImage &image) {
+		auto pixmap = QPixmap::fromImage(image);
+		if (pixmap.isNull()) {
+			qWarning("Failed to create a pixmap from the ScreenShot2 image");
+			emit canceled();
+			return;
+		}
+		emit finished(CaptureDto(pixmap));
+	});
+	connect(&mScreenShot2Client, &KWinScreenShot2Client::canceled, this, &KdeWaylandImageGrabber::canceled);
+	connect(&mScreenShot2Client, &KWinScreenShot2Client::failed, this, [this](const QString &error) {
+		qWarning("KWin ScreenShot2 capture failed: %s", qPrintable(error));
+		emit canceled();
+	});
+	connect(&mPortalGrabber, &WaylandImageGrabber::finished, this, [this](const CaptureDto &capture) {
+		portalRequestFinished();
+		emit finished(capture);
+	});
+	connect(&mPortalGrabber, &WaylandImageGrabber::canceled, this, [this] {
+		portalRequestFinished();
+		emit canceled();
+	});
+
+	mScreenShot2Client.probe();
+}
+
+void KdeWaylandImageGrabber::grabImage(CaptureModes captureMode, bool captureCursor, int delay)
+{
+	if (mBackend == Backend::Pending) {
+		mDeferredCaptures.append({ captureMode, captureCursor, delay });
+		return;
+	}
+
+	if (captureMode == CaptureModes::RectArea && mBackend == Backend::ScreenShot2) {
+		AbstractRectAreaImageGrabber::grabImage(captureMode, captureCursor, delay);
+	} else {
+		AbstractImageGrabber::grabImage(captureMode, captureCursor, delay);
+	}
 }
 
 void KdeWaylandImageGrabber::grab()
 {
-    if (captureMode() == CaptureModes::FullScreen) {
-        prepareDBus(QLatin1String("screenshotFullscreen"), isCaptureCursorEnabled());
-    } else if (captureMode() == CaptureModes::CurrentScreen) {
-        prepareDBus(QLatin1String("screenshotScreen"), isCaptureCursorEnabled());
-    } else if (captureMode() == CaptureModes::ActiveWindow) {
-        prepareDBus(QLatin1String("screenshotWindow"), isCaptureCursorEnabled());
-    } else {
-        int mask = 1;
-        if (isCaptureCursorEnabled()) {
-            mask |= 1 << 1;
-        }
-        prepareDBus(QLatin1String("interactive"), mask);
-    }
+	CaptureRequest request { captureMode(), isCaptureCursorEnabled(), QRect() };
+	if (request.mode == CaptureModes::RectArea) {
+		request.area = mSnippingArea->selectedLogicalRectArea();
+		if (!request.area.isValid()) {
+			emit canceled();
+			return;
+		}
+	}
+
+	dispatch(request);
 }
 
-template<typename T>
-void KdeWaylandImageGrabber::prepareDBus(const QString& mode, T mask)
+void KdeWaylandImageGrabber::dispatch(const CaptureRequest &request)
 {
-    int pipeFds[2];
-    if (pipe2(pipeFds, O_CLOEXEC | O_NONBLOCK) != 0) {
-        emit canceled();
-        return;
-    }
-
-    callDBus(pipeFds[1], mode, mask);
-    startReadImage(pipeFds[0]);
-
-    close(pipeFds[1]);
+	if (mBackend == Backend::ScreenShot2) {
+		dispatchScreenShot2(request);
+	} else {
+		queuePortal(request);
+	}
 }
 
-template<typename T>
-void KdeWaylandImageGrabber::callDBus(int writeFd, const QString& mode, T mask)
+void KdeWaylandImageGrabber::dispatchScreenShot2(const CaptureRequest &request)
 {
-    QDBusInterface interface(QLatin1String("org.kde.KWin"), QLatin1String("/Screenshot"), QLatin1String("org.kde.kwin.Screenshot"));
-    interface.asyncCall(mode, QVariant::fromValue(QDBusUnixFileDescriptor(writeFd)), mask);
+	switch (request.mode) {
+	case CaptureModes::FullScreen:
+		mScreenShot2Client.captureWorkspace(request.captureCursor);
+		break;
+	case CaptureModes::CurrentScreen:
+		mScreenShot2Client.captureActiveScreen(request.captureCursor);
+		break;
+	case CaptureModes::ActiveWindow:
+		mScreenShot2Client.captureActiveWindow(request.captureCursor);
+		break;
+	case CaptureModes::WindowUnderCursor:
+		mScreenShot2Client.captureInteractive(request.captureCursor);
+		break;
+	case CaptureModes::RectArea:
+		mScreenShot2Client.captureArea(request.area, request.captureCursor);
+		break;
+	default:
+		qWarning("Unsupported KWin ScreenShot2 capture mode");
+		emit canceled();
+		break;
+	}
 }
 
-void KdeWaylandImageGrabber::startReadImage(int readPipe)
+QRect KdeWaylandImageGrabber::fullScreenRect() const
 {
-    auto watcher = new QFutureWatcher<QImage>(this);
-    QObject::connect(watcher, &QFutureWatcher<QImage>::finished, this,
-    [watcher, this] {
-        watcher->deleteLater();
-        auto image = watcher->result();
-        emit finished(CaptureDto(QPixmap::fromImage(image)));
-    });
-    watcher->setFuture(QtConcurrent::run(readImage, readPipe));
+	auto primaryScreen = QGuiApplication::primaryScreen();
+	return primaryScreen == nullptr ? QRect() : primaryScreen->virtualGeometry();
+}
+
+QRect KdeWaylandImageGrabber::activeWindowRect() const
+{
+	return {};
+}
+
+bool KdeWaylandImageGrabber::isSnippingAreaBackgroundTransparent() const
+{
+	return true;
+}
+
+CursorDto KdeWaylandImageGrabber::getCursorWithPosition() const
+{
+	return {};
+}
+
+void KdeWaylandImageGrabber::queuePortal(const CaptureRequest &request)
+{
+	mPortalRequests.append(request);
+	processNextPortalRequest();
+}
+
+void KdeWaylandImageGrabber::processNextPortalRequest()
+{
+	if (mPortalBusy || mPortalRequests.isEmpty()) {
+		return;
+	}
+
+	mPortalBusy = true;
+	auto request = mPortalRequests.takeFirst();
+	mPortalGrabber.grabImage(request.mode, request.captureCursor, 0);
+}
+
+void KdeWaylandImageGrabber::portalRequestFinished()
+{
+	mPortalBusy = false;
+	QTimer::singleShot(0, this, [this] {
+		processNextPortalRequest();
+	});
 }

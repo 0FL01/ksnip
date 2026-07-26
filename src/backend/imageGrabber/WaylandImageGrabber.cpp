@@ -120,9 +120,11 @@ bool WaylandImageGrabber::isInteractiveCapture() const
 void WaylandImageGrabber::portalResponse(QDBusPendingCallWatcher *watcher)
 {
     QDBusPendingReply<QDBusObjectPath> reply = *watcher;
+	watcher->deleteLater();
 
     if (reply.isError()) {
         qCritical("Error: %s", qPrintable(reply.error().message()));
+		emit canceled();
     } else {
         QDBusConnection::sessionBus().connect(QString(),
                                               reply.value().path(),

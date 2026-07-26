@@ -29,6 +29,10 @@
 #include "src/common/enum/CaptureModes.h"
 #include "src/gui/actions/Action.h"
 
+#ifdef Q_OS_LINUX
+#include "WaylandGlobalShortcutManager.h"
+#endif
+
 class GlobalHotKeyHandler : public QObject
 {
 	Q_OBJECT
@@ -36,7 +40,8 @@ public:
 	explicit GlobalHotKeyHandler(
 			const QList<CaptureModes> &supportedCaptureModes,
 			const QSharedPointer<IPlatformChecker> &platformChecker,
-			const QSharedPointer<IConfig> &config);
+			const QSharedPointer<IConfig> &config,
+			QObject *parent = nullptr);
 	~GlobalHotKeyHandler() override;
 	void setEnabled(bool enabled);
 
@@ -49,13 +54,27 @@ private:
 	QList<QSharedPointer<GlobalHotKey>> mGlobalHotKeys;
 	QList<CaptureModes> mSupportedCaptureModes;
 	QSharedPointer<IPlatformChecker> mPlatformChecker;
+#ifdef Q_OS_LINUX
+	WaylandGlobalShortcutManager *mWaylandShortcutManager;
+#endif
+	bool mEnabled;
+	bool mHotKeysDirty;
 
 	void removeHotKeys();
 	void createHotKey(const QKeySequence &keySequence, CaptureModes captureMode);
 	void createHotKey(const Action &action);
+#ifdef Q_OS_LINUX
+	void setupWaylandHotKeys();
+	void addWaylandShortcut(QList<WaylandGlobalShortcutManager::Shortcut> &shortcuts,
+								const QString &id,
+								const QString &description,
+								const QKeySequence &keySequence,
+								CaptureModes captureMode) const;
+#endif
 
 private slots:
 	void setupHotKeys();
+	void hotKeysChanged();
 };
 
 

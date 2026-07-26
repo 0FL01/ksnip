@@ -97,8 +97,12 @@ void HotKeySettings::initGui()
 	mPortalKeySequenceLineEdit = new KeySequenceLineEdit(this, allowedKeys, mPlatformChecker);
 
 	mEnableGlobalHotKeysCheckBox->setText(tr("Enable Global HotKeys"));
-	mEnableGlobalHotKeysCheckBox->setToolTip(tr("HotKeys are currently supported only for Windows and X11.\n"
-											       "Disabling this option makes also the action shortcuts ksnip only."));
+	if(mPlatformChecker->isWayland()) {
+		mEnableGlobalHotKeysCheckBox->setToolTip(tr("On Wayland, the desktop portal manages the five built-in capture shortcuts.\n"
+											       "KSnip key sequences are initial preferences; change active bindings in the desktop shortcut settings."));
+	} else {
+		mEnableGlobalHotKeysCheckBox->setToolTip(tr("Disabling this option makes the action shortcuts ksnip only."));
+	}
 	connect(mEnableGlobalHotKeysCheckBox, &QCheckBox::stateChanged, this, &HotKeySettings::globalHotKeysStateChanged);
 
 	mRectAreaLabel->setText(tr("Capture Rect Area") + QLatin1String(":"));
@@ -185,12 +189,12 @@ void HotKeySettings::globalHotKeysStateChanged()
 {
 	auto hotKeysEnabled = mEnableGlobalHotKeysCheckBox->isChecked() && mEnableGlobalHotKeysCheckBox->isEnabled();
 	auto isRectAreaSupported = mCaptureModes.contains(CaptureModes::RectArea);
-	auto isLastRectAreaSupported = mCaptureModes.contains(CaptureModes::LastRectArea);
+	auto isLastRectAreaSupported = !mPlatformChecker->isWayland() && mCaptureModes.contains(CaptureModes::LastRectArea);
 	auto isFullScreenSupported = mCaptureModes.contains(CaptureModes::FullScreen);
 	auto isCurrentScreenSupported = mCaptureModes.contains(CaptureModes::CurrentScreen);
 	auto isActiveWindowSupported = mCaptureModes.contains(CaptureModes::ActiveWindow);
 	auto isWindowUnderCursorSupported = mCaptureModes.contains(CaptureModes::WindowUnderCursor);
-	auto isPortalSupported = mCaptureModes.contains(CaptureModes::Portal);
+	auto isPortalSupported = !mPlatformChecker->isWayland() && mCaptureModes.contains(CaptureModes::Portal);
 
 	mRectAreaLabel->setEnabled(hotKeysEnabled && isRectAreaSupported);
 	mRectAreaKeySequenceLineEdit->setEnabled(hotKeysEnabled && isRectAreaSupported);

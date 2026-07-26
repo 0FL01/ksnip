@@ -51,6 +51,7 @@ configure_file(src/BuildConfig.h.in ${CMAKE_CURRENT_BINARY_DIR}/src/BuildConfig.
 
 if (BUILD_WITH_QT6)
 	set(QT_MAJOR_VERSION 6)
+	list(APPEND QT_COMPONENTS GuiPrivate)
 else()
 	set(QT_MAJOR_VERSION 5)
 endif()
@@ -111,6 +112,7 @@ add_subdirectory(translations)
 add_subdirectory(desktop)
 
 if (BUILD_TESTS)
+	enable_testing()
 	configure_file(src/BuildConfig.h.in ${CMAKE_CURRENT_BINARY_DIR}/tests/BuildConfig.h)
 
 	add_subdirectory(tests)
