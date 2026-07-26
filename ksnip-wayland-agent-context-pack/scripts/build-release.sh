@@ -5,11 +5,12 @@ ROOT="$(git rev-parse --show-toplevel)"
 BUILD_DIR="${BUILD_DIR:-${ROOT}/build-agent}"
 DIST_DIR="${DIST_DIR:-${ROOT}/dist}"
 BUILD_TYPE="${BUILD_TYPE:-RelWithDebInfo}"
+BUILD_JOBS="${BUILD_JOBS:-2}"
 BASELINE_SHA="${BASELINE_SHA:-62fa0ff6ec888125ce6dd592b5fb346658160ac5}"
 PACK_DIR="$ROOT/ksnip-wayland-agent-context-pack"
 INSTALL_BIN="${HOME:?HOME is not set}/.local/libexec/ksnip-wayland/ksnip"
 CONFIGURE_COMMAND="cmake -S $ROOT -B $BUILD_DIR -G Ninja -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DBUILD_WITH_QT6=ON -DUSE_SUBMODULE_KCOLORPICKER=ON -DUSE_SUBMODULE_KIMAGEANNOTATOR=ON"
-BUILD_COMMAND="cmake --build $BUILD_DIR --parallel"
+BUILD_COMMAND="cmake --build $BUILD_DIR --parallel $BUILD_JOBS"
 
 cd "$ROOT"
 git submodule update --init --recursive
@@ -20,7 +21,7 @@ cmake -S "$ROOT" -B "$BUILD_DIR" -G Ninja \
   -DUSE_SUBMODULE_KCOLORPICKER=ON \
   -DUSE_SUBMODULE_KIMAGEANNOTATOR=ON
 
-cmake --build "$BUILD_DIR" --parallel
+cmake --build "$BUILD_DIR" --parallel "$BUILD_JOBS"
 
 BIN="$BUILD_DIR/src/ksnip"
 if [[ ! -x "$BIN" ]]; then
