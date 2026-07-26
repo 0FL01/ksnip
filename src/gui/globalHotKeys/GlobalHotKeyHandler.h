@@ -44,6 +44,7 @@ public:
 			QObject *parent = nullptr);
 	~GlobalHotKeyHandler() override;
 	void setEnabled(bool enabled);
+	void configureWaylandShortcuts();
 
 signals:
 	void captureTriggered(CaptureModes captureMode) const;

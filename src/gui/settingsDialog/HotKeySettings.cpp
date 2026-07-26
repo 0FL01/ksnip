@@ -99,7 +99,7 @@ void HotKeySettings::initGui()
 	mEnableGlobalHotKeysCheckBox->setText(tr("Enable Global HotKeys"));
 	if(mPlatformChecker->isWayland()) {
 		mEnableGlobalHotKeysCheckBox->setToolTip(tr("On Wayland, the desktop portal manages the five built-in capture shortcuts.\n"
-											       "KSnip key sequences are initial preferences; change active bindings in the desktop shortcut settings."));
+											       "KSnip key sequences are initial preferences; use Options > Configure Global Shortcuts to change active bindings."));
 	} else {
 		mEnableGlobalHotKeysCheckBox->setToolTip(tr("Disabling this option makes the action shortcuts ksnip only."));
 	}

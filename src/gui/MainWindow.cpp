@@ -42,6 +42,7 @@ MainWindow::MainWindow(DependencyInjector *dependencyInjector) :
 	mOpenDirectoryAction(new QAction(this)),
 	mToggleDocksAction(new QAction(this)),
 	mSettingsAction(new QAction(this)),
+	mConfigureGlobalShortcutsAction(new QAction(this)),
 	mAboutAction(new QAction(this)),
 	mOpenImageAction(new QAction(this)),
 	mScaleAction(new QAction(this)),
@@ -485,6 +486,9 @@ void MainWindow::initGui()
 	mSettingsAction->setShortcut(Qt::ALT | Qt::Key_F7);
 	connect(mSettingsAction, &QAction::triggered, this, &MainWindow::showSettingsDialog);
 
+	mConfigureGlobalShortcutsAction->setText(tr("Configure Global Shortcuts..."));
+	connect(mConfigureGlobalShortcutsAction, &QAction::triggered, mGlobalHotKeyHandler, &GlobalHotKeyHandler::configureWaylandShortcuts);
+
 	mAboutAction->setText(tr("&About"));
 	mAboutAction->setIcon(iconLoader->load(QLatin1String("ksnip")));
 	connect(mAboutAction, &QAction::triggered, this, &MainWindow::showAboutDialog);
@@ -577,6 +581,9 @@ void MainWindow::initGui()
 	menu = menuBar()->addMenu(tr("&Options"));
 	menu->addAction(mPinAction);
 	menu->addAction(mOcrAction);
+	if(mDependencyInjector->get<IPlatformChecker>()->isWayland()) {
+		menu->addAction(mConfigureGlobalShortcutsAction);
+	}
 	menu->addAction(mSettingsAction);
 	menu = menuBar()->addMenu(tr("&Help"));
 	menu->addAction(mAboutAction);

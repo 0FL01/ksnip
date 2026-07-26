@@ -135,6 +135,15 @@ void GlobalHotKeyHandler::setEnabled(bool enabled)
 	}
 }
 
+void GlobalHotKeyHandler::configureWaylandShortcuts()
+{
+#ifdef Q_OS_LINUX
+	if(mWaylandShortcutManager != nullptr) {
+		mWaylandShortcutManager->requestConfigureShortcuts();
+	}
+#endif
+}
+
 #ifdef Q_OS_LINUX
 void GlobalHotKeyHandler::setupWaylandHotKeys()
 {
@@ -153,7 +162,7 @@ void GlobalHotKeyHandler::addWaylandShortcut(QList<WaylandGlobalShortcutManager:
 													 const QKeySequence &keySequence,
 													 CaptureModes captureMode) const
 {
-	if(mSupportedCaptureModes.contains(captureMode) && !keySequence.isEmpty()) {
+	if(mSupportedCaptureModes.contains(captureMode)) {
 		shortcuts.append({ id, description, keySequence, captureMode });
 	}
 }

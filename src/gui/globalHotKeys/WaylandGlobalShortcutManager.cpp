@@ -58,7 +58,9 @@ WaylandGlobalShortcutManager::WaylandGlobalShortcutManager(QObject *parent) :
 	mGeneration(0),
 	mTokenCounter(0),
 	mRequestCounter(0),
-	mReconciled(false)
+	mPortalVersion(0),
+	mReconciled(false),
+	mConfigureRequested(false)
 {
 	registerDBusTypes();
 	QDBusConnection::sessionBus().connect(PortalService,
@@ -90,7 +92,9 @@ void WaylandGlobalShortcutManager::start(const QList<Shortcut> &shortcuts)
 void WaylandGlobalShortcutManager::stop()
 {
 	mGeneration++;
+	mPortalVersion = 0;
 	mReconciled = false;
+	mConfigureRequested = false;
 	mBoundIds.clear();
 	mDesiredIds.clear();
 	mShortcuts.clear();
@@ -105,6 +109,12 @@ void WaylandGlobalShortcutManager::stop()
 		closeSession(mSessionPath);
 		mSessionPath.clear();
 	}
+}
+
+void WaylandGlobalShortcutManager::requestConfigureShortcuts()
+{
+	mConfigureRequested = true;
+	configureShortcutsIfReady();
 }
 
 void WaylandGlobalShortcutManager::registerDBusTypes()
@@ -231,6 +241,7 @@ void WaylandGlobalShortcutManager::probe(quint64 generation)
 			fail(tr("GlobalShortcuts portal returned an unsupported version"));
 			return;
 		}
+		mPortalVersion = value.toUInt();
 		createSession(generation);
 	});
 }
@@ -268,6 +279,31 @@ void WaylandGlobalShortcutManager::bindShortcuts(quint64 generation)
 				   QString(),
 				   options },
 				 token);
+}
+
+void WaylandGlobalShortcutManager::configureShortcutsIfReady()
+{
+	if(!mConfigureRequested || !mReconciled || mSessionPath.isEmpty()) {
+		return;
+	}
+
+	mConfigureRequested = false;
+	if(mPortalVersion < 2) {
+		qWarning("GlobalShortcuts portal does not support shortcut configuration");
+		return;
+	}
+
+	auto message = QDBusMessage::createMethodCall(PortalService, PortalPath, PortalInterface, QLatin1String("ConfigureShortcuts"));
+	message << QVariant::fromValue(QDBusObjectPath(mSessionPath)) << QString() << QVariantMap();
+	auto generation = mGeneration;
+	auto watcher = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(message, MethodReplyTimeoutMs), this);
+	connect(watcher, &QDBusPendingCallWatcher::finished, this, [this, generation](QDBusPendingCallWatcher *watcher) {
+		QDBusPendingReply<> reply = *watcher;
+		watcher->deleteLater();
+		if(generation == mGeneration && reply.isError()) {
+			qWarning("GlobalShortcuts portal configuration failed: %s", qPrintable(reply.error().message()));
+		}
+	});
 }
 
 void WaylandGlobalShortcutManager::beginRequest(RequestKind kind,
@@ -420,6 +456,7 @@ void WaylandGlobalShortcutManager::setActive(const QSet<QString> &boundIds)
 {
 	mBoundIds = boundIds;
 	mReconciled = true;
+	configureShortcutsIfReady();
 }
 
 void WaylandGlobalShortcutManager::fail(const QString &error)

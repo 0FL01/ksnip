@@ -112,6 +112,7 @@ private:
 	QAction *mOpenDirectoryAction;
 	QAction *mToggleDocksAction;
 	QAction *mSettingsAction;
+	QAction *mConfigureGlobalShortcutsAction;
 	QAction *mAboutAction;
 	QAction *mOpenImageAction;
 	QAction *mScaleAction;

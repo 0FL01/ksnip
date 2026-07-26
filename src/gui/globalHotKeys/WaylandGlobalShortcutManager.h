@@ -68,6 +68,7 @@ public:
 
 	void start(const QList<Shortcut> &shortcuts);
 	void stop();
+	void requestConfigureShortcuts();
 
 	static QString preferredTrigger(const QKeySequence &keySequence);
 	static void registerDBusTypes();
@@ -99,7 +100,9 @@ private:
 	quint64 mGeneration;
 	quint64 mTokenCounter;
 	quint64 mRequestCounter;
+	uint mPortalVersion;
 	bool mReconciled;
+	bool mConfigureRequested;
 
 	QString createToken(const QString &prefix);
 	QString predictedRequestPath(const QString &token) const;
@@ -107,6 +110,7 @@ private:
 	void createSession(quint64 generation);
 	void listShortcuts(quint64 generation);
 	void bindShortcuts(quint64 generation);
+	void configureShortcutsIfReady();
 	void beginRequest(RequestKind kind, quint64 generation, const QString &method, const QVariantList &arguments, const QString &token);
 	void processRequestReply(const QString &expectedPath, quint64 requestId, QDBusPendingCallWatcher *watcher);
 	void processCreateResponse(const QVariantMap &results, quint64 generation);
