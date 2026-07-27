@@ -16,25 +16,25 @@ Comment[ru]=Кросс-платформенный инструмент для с
 X-KDE-DBUS-Restricted-Interfaces=org.kde.kwin.Screenshot,org.kde.KWin.ScreenShot2
 
 [Desktop Action Area]
-Exec=ksnip -r -c
+Exec=/usr/bin/ksnip -r -c
 Icon=ksnip
 Name=Capture a rectangular area
 Name[ru]=Снимок выделенной области
 
 [Desktop Action LastArea]
-Exec=ksnip -l -c
+Exec=/usr/bin/ksnip -l -c
 Icon=ksnip
 Name=Capture last selected rectangular area
 Name[ru]=Снимок последней области
 
 [Desktop Action FullScreen]
-Exec=ksnip -m -c
+Exec=/usr/bin/ksnip -f -c
 Icon=ksnip
 Name=Capture a fullscreen
 Name[ru]=Снимок всего экрана
 
 [Desktop Action Window]
-Exec=ksnip -a -c
+Exec=/usr/bin/ksnip -a -c
 Icon=ksnip
 Name=Capture the focused window
 Name[ru]=Снимок активного экрана

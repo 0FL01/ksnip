@@ -1,0 +1,159 @@
+name: Fedora RPM
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ master ]
+
+permissions:
+  contents: read
+
+jobs:
+  rpm:
+    runs-on: ubuntu-24.04
+    container:
+      image: fedora:44
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Install bootstrap tools
+        run: >-
+          dnf install -y
+          binutils
+          coreutils
+          cpio
+          dnf5-plugins
+          file
+          findutils
+          git-core
+          gzip
+          rpm-build
+          sed
+          tar
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Prepare self-contained RPM source
+        id: source
+        run: |
+          set -euo pipefail
+          export LC_ALL=C
+
+          commit=$(git rev-parse HEAD)
+          short_commit=$(git rev-parse --short=8 HEAD)
+          commit_count=$(git rev-list --count HEAD)
+          commit_epoch=$(git show -s --format=%ct HEAD)
+          base_version=$(sed -nE 's/^project\(ksnip .* VERSION ([0-9.]+)\)$/\1/p' CMakeLists.txt)
+          version="${base_version}^${commit_count}.g${short_commit}"
+          topdir="$GITHUB_WORKSPACE/rpmbuild"
+
+          test -n "$base_version"
+          mkdir -p "$topdir"/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
+
+          git ls-files --recurse-submodules -z |
+            sort -z |
+            tar --create --null --no-recursion --files-from=- \
+              --format=gnu \
+              --owner=0 --group=0 --numeric-owner \
+              --mtime="@${commit_epoch}" \
+              --transform="s|^|ksnip-${version}/|" |
+            gzip -9n > "$topdir/SOURCES/ksnip-${version}.tar.gz"
+          touch -d "@${commit_epoch}" "$topdir/SOURCES/ksnip-${version}.tar.gz"
+
+          sed \
+            -e "s/@COMMIT@/${commit}/g" \
+            -e "s/@SHORT_COMMIT@/${short_commit}/g" \
+            -e "s/@COMMIT_COUNT@/${commit_count}/g" \
+            -e "s/@VERSION@/${version}/g" \
+            .github/scripts/linux/rpm/ksnip.spec.in \
+            > "$topdir/SPECS/ksnip.spec"
+
+          echo "SOURCE_DATE_EPOCH=$commit_epoch" >> "$GITHUB_ENV"
+          echo "topdir=$topdir" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "short_commit=$short_commit" >> "$GITHUB_OUTPUT"
+
+      - name: Install build dependencies
+        run: |
+          test "$(rpm -E '%fedora')" = 44
+          test "$(uname -m)" = x86_64
+          dnf builddep -y "${{ steps.source.outputs.topdir }}/SPECS/ksnip.spec"
+
+      - name: Build source and binary RPMs
+        run: |
+          set -euo pipefail
+          rpmbuild -ba \
+            --define "_topdir ${{ steps.source.outputs.topdir }}" \
+            --define "_smp_build_ncpus 2" \
+            "${{ steps.source.outputs.topdir }}/SPECS/ksnip.spec"
+
+      - name: Validate RPM payload and dependency closure
+        run: |
+          set -euo pipefail
+          topdir="${{ steps.source.outputs.topdir }}"
+          mapfile -t main_rpms < <(find "$topdir/RPMS" -type f -name 'ksnip-[0-9]*.x86_64.rpm' | sort)
+          mapfile -t source_rpms < <(find "$topdir/SRPMS" -type f -name 'ksnip-*.src.rpm' | sort)
+
+          test "${#main_rpms[@]}" -eq 1
+          test "${#source_rpms[@]}" -eq 1
+          main_rpm=${main_rpms[0]}
+
+          rpm -K "$main_rpm" "${source_rpms[0]}"
+          rpm -qpl "$main_rpm" | tee /tmp/ksnip-payload.txt
+          rpm -qp --requires "$main_rpm" | tee /tmp/ksnip-requires.txt
+
+          grep -Fx '/usr/bin/ksnip' /tmp/ksnip-payload.txt
+          grep -Fx '/usr/share/applications/org.ksnip.ksnip.desktop' /tmp/ksnip-payload.txt
+          grep -Fx '/usr/share/metainfo/org.ksnip.ksnip.appdata.xml' /tmp/ksnip-payload.txt
+          grep -Fx '/usr/share/icons/hicolor/scalable/apps/ksnip.svg' /tmp/ksnip-payload.txt
+          if grep -Eq '(^|/)(include|cmake)/|\.a$' /tmp/ksnip-payload.txt; then
+            echo 'Bundled development files leaked into the application RPM' >&2
+            exit 1
+          fi
+          if grep -Eq 'libQt5|Qt_5' /tmp/ksnip-requires.txt; then
+            echo 'Unexpected Qt 5 dependency in the Qt 6 RPM' >&2
+            exit 1
+          fi
+
+          installroot="$RUNNER_TEMP/ksnip-installroot"
+          dnf install -y \
+            --installroot "$installroot" \
+            --use-host-config \
+            --releasever 44 \
+            --setopt=install_weak_deps=False \
+            "$main_rpm"
+
+          dnf install -y "$main_rpm"
+          rpm -V ksnip
+          test "$(rpm -qf /usr/bin/ksnip)" = "$(rpm -q ksnip)"
+          file /usr/bin/ksnip
+          ldd /usr/bin/ksnip | tee /tmp/ksnip-ldd.txt
+          ! grep -F 'not found' /tmp/ksnip-ldd.txt
+          ! readelf -d /usr/bin/ksnip | grep -E '(RPATH|RUNPATH)'
+          QT_QPA_PLATFORM=offscreen /usr/bin/ksnip --version
+
+          desktop=/usr/share/applications/org.ksnip.ksnip.desktop
+          desktop-file-validate "$desktop"
+          grep -Fx 'Exec=/usr/bin/ksnip %F' "$desktop"
+          grep -Fx 'Exec=/usr/bin/ksnip -f -c' "$desktop"
+          grep -Fx 'X-KDE-DBUS-Restricted-Interfaces=org.kde.kwin.Screenshot,org.kde.KWin.ScreenShot2' "$desktop"
+          ! grep -Eq '^Exec=ksnip([[:space:]]|$)' "$desktop"
+          appstreamcli validate --no-net /usr/share/metainfo/org.ksnip.ksnip.appdata.xml
+
+      - name: Upload RPMs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ksnip-fedora-44-x86_64-${{ steps.source.outputs.short_commit }}
+          path: |
+            ${{ steps.source.outputs.topdir }}/RPMS/**/*.rpm
+            ${{ steps.source.outputs.topdir }}/SRPMS/*.src.rpm
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0

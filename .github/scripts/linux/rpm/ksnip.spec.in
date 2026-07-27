@@ -1,0 +1,100 @@
+%global commit @COMMIT@
+%global shortcommit @SHORT_COMMIT@
+%global commit_count @COMMIT_COUNT@
+
+Name:           ksnip
+Version:        @VERSION@
+Release:        1%{?dist}
+Summary:        Screenshot and annotation tool
+
+License:        GPL-2.0-or-later AND LGPL-2.0-or-later AND LGPL-3.0-or-later AND FSFAP
+URL:            https://github.com/0FL01/ksnip
+Source0:        %{name}-%{version}.tar.gz
+
+BuildRequires:  cmake
+BuildRequires:  gcc-c++
+BuildRequires:  ninja-build
+BuildRequires:  extra-cmake-modules
+BuildRequires:  cmake(Qt6Core)
+BuildRequires:  cmake(Qt6Gui)
+BuildRequires:  cmake(Qt6GuiPrivate)
+BuildRequires:  cmake(Qt6Widgets)
+BuildRequires:  cmake(Qt6Network)
+BuildRequires:  cmake(Qt6Xml)
+BuildRequires:  cmake(Qt6PrintSupport)
+BuildRequires:  cmake(Qt6DBus)
+BuildRequires:  cmake(Qt6Concurrent)
+BuildRequires:  cmake(Qt6Svg)
+BuildRequires:  cmake(Qt6LinguistTools)
+BuildRequires:  cmake(Qt6Test)
+BuildRequires:  cmake(GTest)
+BuildRequires:  gmock-devel
+BuildRequires:  pkgconfig(x11)
+BuildRequires:  pkgconfig(xcb-xfixes)
+BuildRequires:  desktop-file-utils
+BuildRequires:  appstream
+
+Requires:       hicolor-icon-theme
+Recommends:     xdg-desktop-portal
+Suggests:       xdg-desktop-portal-kde
+
+Provides:       bundled(kcolorpicker) = 0.3.1
+Provides:       bundled(kimageannotator) = 0.7.2
+
+%description
+KSnip is a cross-platform screenshot and annotation application. This Fedora
+build statically includes the pinned kColorPicker and kImageAnnotator sources.
+
+%prep
+%autosetup -n %{name}-%{version}
+test -f libraries/kColorPicker/CMakeLists.txt
+test -f libraries/kImageAnnotator/CMakeLists.txt
+
+%build
+%cmake \
+    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+    -DBUILD_WITH_QT6:BOOL=ON \
+    -DBUILD_SHARED_LIBS:BOOL=OFF \
+    -DBUILD_TESTS:BOOL=ON \
+    -DUSE_SUBMODULE_KCOLORPICKER:BOOL=ON \
+    -DUSE_SUBMODULE_KIMAGEANNOTATOR:BOOL=ON \
+    -DVERSION_SUFIX=%{commit_count}.g%{shortcommit} \
+    -DBUILD_NUMBER=%{commit}
+%cmake_build
+
+%install
+%cmake_install
+
+rm -f %{buildroot}%{_libdir}/libkColorPicker.a
+rm -f %{buildroot}%{_libdir}/libkImageAnnotator.a
+rm -rf %{buildroot}%{_includedir}/kColorPicker-Qt6
+rm -rf %{buildroot}%{_includedir}/kImageAnnotator-Qt6
+rm -rf %{buildroot}%{_libdir}/cmake/kColorPicker-Qt6
+rm -rf %{buildroot}%{_libdir}/cmake/kImageAnnotator-Qt6
+
+install -Dpm0644 LICENSE.txt \
+    %{buildroot}%{_datadir}/licenses/%{name}/GPL-3.0.txt
+install -Dpm0644 libraries/kColorPicker/LICENSE \
+    %{buildroot}%{_datadir}/licenses/%{name}/kColorPicker-LGPL-3.0.txt
+install -Dpm0644 libraries/kImageAnnotator/LICENSE \
+    %{buildroot}%{_datadir}/licenses/%{name}/kImageAnnotator-LGPL-3.0.txt
+
+%check
+QT_QPA_PLATFORM=offscreen ctest \
+    --test-dir %{_vpath_builddir} \
+    --output-on-failure \
+    -j1
+desktop-file-validate \
+    %{buildroot}%{_datadir}/applications/org.ksnip.ksnip.desktop
+appstreamcli validate --no-net \
+    %{buildroot}%{_datadir}/metainfo/org.ksnip.ksnip.appdata.xml
+
+%files
+%license %{_datadir}/licenses/%{name}
+%doc CHANGELOG.md README.md
+%{_bindir}/ksnip
+%{_datadir}/applications/org.ksnip.ksnip.desktop
+%{_datadir}/icons/hicolor/scalable/apps/ksnip.svg
+%{_datadir}/metainfo/org.ksnip.ksnip.appdata.xml
+%{_datadir}/ksnip/translations
+%{_datadir}/kImageAnnotator/translations
