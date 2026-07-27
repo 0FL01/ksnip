@@ -110,6 +110,27 @@ and kColorPicker.
 * Keep changes phase-local. Do not combine Wayland work with unrelated cleanup,
   formatting, translations, or legacy refactors.
 
+## Commit Conventions
+
+* Keep commits atomic and exclude unrelated changes.
+* Use `<type>(<scope>): <description>`, followed by a blank line and an indented
+  `Changes:` section with 2-4 bullets. Allowed types are `feat`, `fix`, `chore`,
+  `docs`, `refactor`, and `test`.
+
+```text
+docs(agents): document commit conventions
+
+    Changes:
+    - Define the required commit message format
+    - Add examples for common change types
+
+fix(wayland): prevent stale capture completion
+
+    Changes:
+    - Ignore asynchronous capture results after backend destruction
+    - Cover cancellation and successful completion paths
+```
+
 ## Build and Verification
 
 Initialize dependencies once:
