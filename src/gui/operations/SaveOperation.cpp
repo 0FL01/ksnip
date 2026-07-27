@@ -60,7 +60,7 @@ SaveOperation::SaveOperation(
 	mPathToImageSource = pathToImageSource;
 }
 
-SaveResultDto SaveOperation::execute()
+SaveResultDto SaveOperation::execute(bool showSuccessToast)
 {
 	auto path = getSavePath();
 
@@ -76,7 +76,7 @@ SaveResultDto SaveOperation::execute()
 		path = selectedSavePath;
 	}
 
-	auto saveResult = save(path);
+	auto saveResult = save(path, showSuccessToast);
 	updateSaveDirectoryIfRequired(path, saveResult);
 
 	if (saveResult.isSuccessful) {
@@ -99,12 +99,12 @@ QString SaveOperation::getSavePath() const
 	return PathHelper::isPathValid(mPathToImageSource) ? mPathToImageSource : mSavePathProvider->savePath();
 }
 
-SaveResultDto SaveOperation::save(const QString &path)
+SaveResultDto SaveOperation::save(const QString &path, bool showSuccessToast)
 {
 	auto successful = mImageSaver->save(mImage, path);
-	if(successful) {
+	if(successful && showSuccessToast) {
 		notify(tr("Image Saved"), tr("Saved to %1").arg(path), path, NotificationTypes::Information);
-	} else {
+	} else if(!successful) {
 		notify(tr("Saving Image Failed"), tr("Failed to save image to %1").arg(path), path, NotificationTypes::Critical);
 	}
 	return SaveResultDto(successful, path);

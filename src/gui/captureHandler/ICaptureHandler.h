@@ -35,7 +35,7 @@ public:
 	virtual QString path() const = 0;
 	virtual bool isPathValid() const = 0;
 	virtual void saveAs() = 0;
-	virtual void save() = 0;
+	virtual void save(bool showSuccessToast) = 0;
 	virtual void saveAll() = 0;
 	virtual void rename() = 0;
 	virtual void copy() = 0;

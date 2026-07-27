@@ -74,6 +74,19 @@ void WidgetVisibilityHandler::restoreState()
 	mWindowStateChangeLock = false;
 }
 
+void WidgetVisibilityHandler::enforceHidden()
+{
+	mWidget->hide();
+	auto windowState = Qt::WindowStates(getSelectedWindowState());
+	windowState.setFlag(Qt::WindowMinimized, false);
+	windowState.setFlag(Qt::WindowActive, false);
+	mWidget->setWindowState(windowState);
+	mWidget->setWindowOpacity(1.0);
+	mIsHidden = true;
+	mIsMinimized = false;
+	mWindowStateChangeLock = false;
+}
+
 void WidgetVisibilityHandler::enforceVisible()
 {
 	setVisible(true);

@@ -29,6 +29,7 @@ public:
 	static QString promptSaveBeforeExitString();
 	static QString autoCopyToClipboardNewCapturesString();
 	static QString autoSaveNewCapturesString();
+	static QString hideEditorAfterCaptureEnabledString();
 	static QString rememberToolSelectionString();
 	static QString switchToSelectToolAfterDrawingItemString();
 	static QString selectItemAfterDrawingString();

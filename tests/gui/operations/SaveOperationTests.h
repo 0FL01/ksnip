@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 Damir Porobic <damir.porobic@gmx.com>
+ * Copyright (C) 2026 Damir Porobic <damir.porobic@gmx.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,21 +17,18 @@
  * Boston, MA 02110-1301, USA.
  */
 
-#ifndef KSNIP_SINGLECAPTUREHANDLERTESTS_H
-#define KSNIP_SINGLECAPTUREHANDLERTESTS_H
+#ifndef KSNIP_SAVEOPERATIONTESTS_H
+#define KSNIP_SAVEOPERATIONTESTS_H
 
 #include <QtTest>
 
-class SingleCaptureHandlerTests : public QObject
+class SaveOperationTests : public QObject
 {
-    Q_OBJECT
+	Q_OBJECT
 private slots:
-    void RemoveImage_Should_CleanupAnnotationData_When_ImageDeleted();
-    void RemoveImage_Should_NotCleanupAnnotationData_When_ImageWasNotDeleted();
-    void Load_Should_SetPathAndIsSavedToValuesFromCaptureDto_When_CaptureLoadedFromFile();
-    void Load_Should_SetPathToEmptyAndIsSavedToFalse_When_CaptureNotLoadedFromFile();
-	void Save_Should_NotShowSuccessToast_When_SuccessToastDisabled();
-
+	void Execute_Should_ShowSuccessToast_When_SuccessToastEnabled();
+	void Execute_Should_NotShowToast_When_SuccessToastDisabled();
+	void Execute_Should_ShowCriticalToast_When_SaveFailsAndSuccessToastDisabled();
 };
 
-#endif //KSNIP_SINGLECAPTUREHANDLERTESTS_H
+#endif //KSNIP_SAVEOPERATIONTESTS_H

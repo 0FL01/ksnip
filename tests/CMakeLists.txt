@@ -14,6 +14,8 @@ set(UNITTEST_SRC
 	${CMAKE_CURRENT_SOURCE_DIR}/gui/captureHandler/SingleCaptureHandlerTests.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/gui/operations/DeleteImageOperationTests.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/gui/operations/LoadImageFromFileOperationTests.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/gui/operations/SaveOperationTests.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/gui/widgetVisibilityHandler/WidgetVisibilityHandlerTests.cpp
 	)
 
 if (UNIX AND NOT APPLE)

@@ -39,6 +39,11 @@ QString ConfigOptions::autoSaveNewCapturesString()
 	return applicationSectionString() + QLatin1String("AutoSaveNewCaptures");
 }
 
+QString ConfigOptions::hideEditorAfterCaptureEnabledString()
+{
+	return applicationSectionString() + QLatin1String("HideEditorAfterCapture");
+}
+
 QString ConfigOptions::rememberToolSelectionString()
 {
 	return annotatorSectionString() + QLatin1String("SaveToolsSelection");

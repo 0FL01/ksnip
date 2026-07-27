@@ -58,7 +58,7 @@ public:
 			const QSharedPointer<IConfig> &config,
 			QWidget *parent);
     ~SaveOperation() override = default;
-	SaveResultDto execute();
+	SaveResultDto execute(bool showSuccessToast);
 
 private:
     QWidget* mParent;
@@ -73,7 +73,7 @@ private:
 	QSharedPointer<IConfig> mConfig;
 
 	void notify(const QString &title, const QString &message, const QString &path, NotificationTypes notificationType) const;
-	SaveResultDto save(const QString &path);
+	SaveResultDto save(const QString &path, bool showSuccessToast);
 	QString getSavePath() const;
 	void updateSaveDirectoryIfRequired(const QString &path, const SaveResultDto &saveResult) const;
 };

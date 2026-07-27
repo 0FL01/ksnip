@@ -146,9 +146,9 @@ void MultiCaptureHandler::saveAs()
 	saveAsTab(mTabStateHandler->currentTabIndex());
 }
 
-void MultiCaptureHandler::save()
+void MultiCaptureHandler::save(bool showSuccessToast)
 {
-	saveTab(mTabStateHandler->currentTabIndex());
+	saveAt(mTabStateHandler->currentTabIndex(), true, showSuccessToast);
 }
 
 void MultiCaptureHandler::saveAll()
@@ -181,7 +181,7 @@ void MultiCaptureHandler::removeImage()
 	deleteImageTab(mTabStateHandler->currentTabIndex());
 }
 
-void MultiCaptureHandler::saveAt(int index, bool isInstant)
+void MultiCaptureHandler::saveAt(int index, bool isInstant, bool showSuccessToast)
 {
 	auto image = mImageAnnotator->imageAt(index);
 	SaveOperation operation(
@@ -195,7 +195,7 @@ void MultiCaptureHandler::saveAt(int index, bool isInstant)
 			mFileDialogService,
 			mConfig,
 			mParent);
-	auto saveResult = operation.execute();
+	auto saveResult = operation.execute(showSuccessToast);
 	mTabStateHandler->setSaveState(index, saveResult);
 	captureChanged();
 }
@@ -303,12 +303,12 @@ void MultiCaptureHandler::addTabContextMenuActions(const QSharedPointer<IIconLoa
 
 void MultiCaptureHandler::saveAsTab(int index)
 {
-	saveAt(index, false);
+	saveAt(index, false, true);
 }
 
 void MultiCaptureHandler::saveTab(int index)
 {
-	saveAt(index, true);
+	saveAt(index, true, true);
 }
 
 void MultiCaptureHandler::saveAllTabs()
@@ -316,7 +316,7 @@ void MultiCaptureHandler::saveAllTabs()
 	int tabIndex = 0;
 	while (tabIndex < mTabStateHandler->count()) {
 		if (!mTabStateHandler->isSaved(tabIndex)) {
-			saveAt(tabIndex, true);
+			saveAt(tabIndex, true, true);
 		}
 		++tabIndex;
 	}

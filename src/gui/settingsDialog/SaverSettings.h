@@ -44,6 +44,7 @@ public:
 
 private:
 	QCheckBox *mAutoSaveNewCapturesCheckbox;
+	QCheckBox *mHideEditorAfterCaptureCheckbox;
 	QCheckBox *mPromptToSaveBeforeExitCheckbox;
 	QCheckBox *mRememberSaveDirectoryCheckbox;
 	QRadioButton *mSaveQualityDefaultRadioButton;

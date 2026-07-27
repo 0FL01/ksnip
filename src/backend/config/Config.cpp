@@ -80,6 +80,19 @@ void Config::setAutoSaveNewCaptures(bool  enabled)
 	saveValue(ConfigOptions::autoSaveNewCapturesString(), enabled);
 }
 
+bool Config::hideEditorAfterCaptureEnabled() const
+{
+	return loadValue(ConfigOptions::hideEditorAfterCaptureEnabledString(), false).toBool();
+}
+
+void Config::setHideEditorAfterCaptureEnabled(bool enabled)
+{
+	if (hideEditorAfterCaptureEnabled() == enabled) {
+		return;
+	}
+	saveValue(ConfigOptions::hideEditorAfterCaptureEnabledString(), enabled);
+}
+
 bool Config::autoHideDocks() const
 {
 	return loadValue(ConfigOptions::autoHideDocksString(), false).toBool();

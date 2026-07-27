@@ -34,6 +34,7 @@ public:
 	virtual void show();
 	virtual void minimize();
 	virtual void restoreState();
+	virtual void enforceHidden();
 	virtual void enforceVisible();
 	virtual bool isMaximized();
 	virtual void updateState();

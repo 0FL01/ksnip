@@ -56,6 +56,9 @@ public:
 	bool autoSaveNewCaptures() const override;
 	void setAutoSaveNewCaptures(bool enabled) override;
 
+	bool hideEditorAfterCaptureEnabled() const override;
+	void setHideEditorAfterCaptureEnabled(bool enabled) override;
+
 	bool autoHideDocks() const override;
 	void setAutoHideDocks(bool enabled) override;
 

@@ -41,6 +41,9 @@ public:
 	MOCK_METHOD(bool, autoSaveNewCaptures, (), (const, override));
 	MOCK_METHOD(void, setAutoSaveNewCaptures, (bool enabled), (override));
 
+	MOCK_METHOD(bool, hideEditorAfterCaptureEnabled, (), (const, override));
+	MOCK_METHOD(void, setHideEditorAfterCaptureEnabled, (bool enabled), (override));
+
 	MOCK_METHOD(bool, autoHideDocks, (), (const, override));
 	MOCK_METHOD(void, setAutoHideDocks, (bool enabled), (override));
 

@@ -62,7 +62,7 @@ public:
 	QString path() const override;
 	bool isPathValid() const override;
 	void saveAs() override;
-	void save() override;
+	void save(bool showSuccessToast) override;
 	void saveAll() override;
 	void rename() override;
 	void copy() override;
@@ -103,7 +103,7 @@ private:
 
 	bool discardChanges(int index);
 	void removeTab(int currentTabIndex);
-	void saveAt(int index, bool isInstant);
+	void saveAt(int index, bool isInstant, bool showSuccessToast);
 	void addTabContextMenuActions(const QSharedPointer<IIconLoader> &iconLoader);
 
 private slots:

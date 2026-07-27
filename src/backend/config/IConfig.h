@@ -51,6 +51,9 @@ public:
 	virtual bool autoSaveNewCaptures() const = 0;
 	virtual void setAutoSaveNewCaptures(bool enabled) = 0;
 
+	virtual bool hideEditorAfterCaptureEnabled() const = 0;
+	virtual void setHideEditorAfterCaptureEnabled(bool enabled) = 0;
+
 	virtual bool autoHideDocks() const = 0;
 	virtual void setAutoHideDocks(bool enabled) = 0;
 

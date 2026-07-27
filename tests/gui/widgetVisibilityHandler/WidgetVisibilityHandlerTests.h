@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 Damir Porobic <damir.porobic@gmx.com>
+ * Copyright (C) 2026 Damir Porobic <damir.porobic@gmx.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,21 +17,18 @@
  * Boston, MA 02110-1301, USA.
  */
 
-#ifndef KSNIP_SINGLECAPTUREHANDLERTESTS_H
-#define KSNIP_SINGLECAPTUREHANDLERTESTS_H
+#ifndef KSNIP_WIDGETVISIBILITYHANDLERTESTS_H
+#define KSNIP_WIDGETVISIBILITYHANDLERTESTS_H
 
 #include <QtTest>
 
-class SingleCaptureHandlerTests : public QObject
+class WidgetVisibilityHandlerTests : public QObject
 {
-    Q_OBJECT
+	Q_OBJECT
 private slots:
-    void RemoveImage_Should_CleanupAnnotationData_When_ImageDeleted();
-    void RemoveImage_Should_NotCleanupAnnotationData_When_ImageWasNotDeleted();
-    void Load_Should_SetPathAndIsSavedToValuesFromCaptureDto_When_CaptureLoadedFromFile();
-    void Load_Should_SetPathToEmptyAndIsSavedToFalse_When_CaptureNotLoadedFromFile();
-	void Save_Should_NotShowSuccessToast_When_SuccessToastDisabled();
-
+	void RestoreState_Should_RemainHidden_When_HiddenWasEnforced();
+	void EnforceVisible_Should_ShowWidget_When_HiddenWasEnforced();
+	void RestoreState_Should_RestoreVisibleWidget_When_TemporarilyInvisible();
 };
 
-#endif //KSNIP_SINGLECAPTUREHANDLERTESTS_H
+#endif //KSNIP_WIDGETVISIBILITYHANDLERTESTS_H

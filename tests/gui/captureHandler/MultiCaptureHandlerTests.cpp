@@ -934,4 +934,53 @@ void MultiCaptureHandlerTests::SaveAll_Should_CallSaveForAllTabs_When_TabIsNotSa
 	multiCaptureHandler.saveAll();
 }
 
+void MultiCaptureHandlerTests::Save_Should_NotShowSuccessToast_When_SuccessToastDisabled()
+{
+	// arrange
+	QWidget parent;
+	ImageAnnotatorMock imageAnnotatorMock;
+	auto notificationServiceMock = QSharedPointer<NotificationServiceMock>(new NotificationServiceMock);
+	auto captureTabStateHandlerMock = QSharedPointer<CaptureTabStateHandlerMock>(new CaptureTabStateHandlerMock);
+	auto configMock = QSharedPointer<ConfigMock>(new ConfigMock);
+	auto iconLoaderMock = QSharedPointer<IconLoaderMock>(new IconLoaderMock);
+	auto imageSaverMock = QSharedPointer<ImageSaverMock>(new ImageSaverMock);
+	auto savePathProviderMock = QSharedPointer<SavePathProviderMock>(new SavePathProviderMock);
+	auto recentImageServiceMock = QSharedPointer<RecentImageServiceMock>(new RecentImageServiceMock);
+	auto path = QStringLiteral("capture.png");
+
+	EXPECT_CALL(imageAnnotatorMock, setTabBarAutoHide(testing::_));
+	EXPECT_CALL(imageAnnotatorMock, addTabContextMenuActions(testing::_));
+	EXPECT_CALL(imageAnnotatorMock, imageAt(0)).WillOnce(testing::Return(QImage(1, 1, QImage::Format_ARGB32)));
+	EXPECT_CALL(*configMock, autoHideTabs());
+	EXPECT_CALL(*captureTabStateHandlerMock, currentTabIndex()).WillRepeatedly(testing::Return(0));
+	EXPECT_CALL(*captureTabStateHandlerMock, path(0)).WillOnce(testing::Return(QString()));
+	EXPECT_CALL(*captureTabStateHandlerMock, setSaveState(0, testing::_));
+	EXPECT_CALL(*savePathProviderMock, savePath()).WillOnce(testing::Return(path));
+	EXPECT_CALL(*imageSaverMock, save(testing::_, path)).WillOnce(testing::Return(true));
+	EXPECT_CALL(*recentImageServiceMock, storeImagePath(path));
+	EXPECT_CALL(*iconLoaderMock, loadForTheme(testing::_)).WillRepeatedly(testing::Return(QIcon()));
+	EXPECT_CALL(*notificationServiceMock, showInfo(testing::_, testing::_, testing::_)).Times(0);
+	EXPECT_CALL(*notificationServiceMock, showWarning(testing::_, testing::_, testing::_)).Times(0);
+	EXPECT_CALL(*notificationServiceMock, showCritical(testing::_, testing::_, testing::_)).Times(0);
+
+	MultiCaptureHandler multiCaptureHandler(
+			&imageAnnotatorMock,
+			notificationServiceMock,
+			captureTabStateHandlerMock,
+			configMock,
+			nullptr,
+			nullptr,
+			nullptr,
+			nullptr,
+			recentImageServiceMock,
+			imageSaverMock,
+			savePathProviderMock,
+			iconLoaderMock,
+			nullptr,
+			&parent);
+
+	// act
+	multiCaptureHandler.save(false);
+}
+
 TEST_MAIN(MultiCaptureHandlerTests)

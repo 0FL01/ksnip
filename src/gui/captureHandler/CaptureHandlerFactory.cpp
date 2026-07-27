@@ -27,7 +27,7 @@ ICaptureHandler* CaptureHandlerFactory::create(
 {
 	auto config = dependencyInjector->get<IConfig>();
 
-	if(config->useTabs()) {
+	if(config->useTabs() || config->hideEditorAfterCaptureEnabled()) {
 		return new MultiCaptureHandler(
 				imageAnnotator,
 				notificationService,

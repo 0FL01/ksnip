@@ -79,7 +79,7 @@ void SingleInstanceServerBootstrapper::capture(const SingleInstanceParameter &pa
 void SingleInstanceServerBootstrapper::show() const
 {
 	mLogger->log(QLatin1String("Single instance server was request to show main window"));
-	mMainWindow->show();
+	mMainWindow->showEditor();
 }
 
 void SingleInstanceServerBootstrapper::processImage(const QString &imagePath)

@@ -71,6 +71,7 @@ public:
     void showEmpty();
 	void showHidden();
     void showDefault();
+	void showEditor();
     void captureScreenshot(CaptureModes captureMode, bool captureCursor, int delay);
 	void resizeToContent() override;
 	bool isWindowMaximized() override;
@@ -100,6 +101,7 @@ private:
 	QSharedPointer<INotificationService> mNotificationService;
 	bool mSessionManagerRequestedQuit;
 	bool mResizeOnNormalize;
+	bool mHideEditorAfterCaptureEnabled;
 	QAction *mSaveAsAction;
 	QAction *mSaveAllAction;
 	QAction *mUploadAction;
@@ -152,6 +154,8 @@ private:
     void capture(CaptureModes captureMode, bool captureCursor, int delay);
     void initGui();
 	void showDialog(const std::function<void ()>& showDialogMethod);
+	void processCapture(const CaptureDto &capture, bool hideEditor);
+	void processImage(const CaptureDto &capture, bool hideEditor);
 
 private slots:
 	void captureChanged() override;
@@ -178,7 +182,8 @@ private slots:
 	void saveAsClicked();
 	void saveAllClicked();
 	void updateApplicationTitle();
-	void capturePostProcessing();
+	void capturePostProcessing(bool hideEditor);
+	void processScreenshotCapture(const CaptureDto &capture);
 	void loadImageFromFile(const QString &path);
 	void loadImageFromPixmap(const QPixmap &pixmap);
 	void sessionFinished();

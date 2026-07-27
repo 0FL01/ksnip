@@ -22,6 +22,7 @@
 SaverSettings::SaverSettings(const QSharedPointer<IConfig> &config, const QSharedPointer<IFileDialogService> &fileDialogService) :
 	mConfig(config),
 	mAutoSaveNewCapturesCheckbox(new QCheckBox(this)),
+	mHideEditorAfterCaptureCheckbox(new QCheckBox(this)),
 	mPromptToSaveBeforeExitCheckbox(new QCheckBox(this)),
 	mRememberSaveDirectoryCheckbox(new QCheckBox(this)),
 	mSaveQualityDefaultRadioButton(new QRadioButton(this)),
@@ -43,6 +44,12 @@ SaverSettings::SaverSettings(const QSharedPointer<IConfig> &config, const QShare
 void SaverSettings::initGui()
 {
 	mAutoSaveNewCapturesCheckbox->setText(tr("Automatically save new captures to default location"));
+	mHideEditorAfterCaptureCheckbox->setText(tr("Hide the editor after each screenshot (stealth mode)"));
+	mHideEditorAfterCaptureCheckbox->setToolTip(tr("Keeps successful screenshots in the editor without showing or activating the Main Window.\n"
+													 "Stealth mode uses tabs and overrides 'Show Main Window after taking screenshot'.\n"
+													 "Automatic save and clipboard settings are unchanged, and errors are still reported.\n"
+													 "Custom Actions keep their own window behavior. Unsaved captures are lost when ksnip exits.\n"
+													 "Change requires restart."));
 	mPromptToSaveBeforeExitCheckbox->setText(tr("Prompt to save before discarding unsaved changes"));
 
 	mSaveQualityDefaultRadioButton->setText(tr("Default"));
@@ -79,15 +86,16 @@ void SaverSettings::initGui()
 
 	mLayout->setAlignment(Qt::AlignTop);
 	mLayout->addWidget(mAutoSaveNewCapturesCheckbox, 0, 0, 1, 4);
-	mLayout->addWidget(mPromptToSaveBeforeExitCheckbox, 1, 0, 1, 4);
-	mLayout->addWidget(mRememberSaveDirectoryCheckbox, 2, 0, 1, 4);
-	mLayout->setRowMinimumHeight(3, 15);
-	mLayout->addWidget(mSaveQualityGroupBox, 4, 0, 1, 4);
-	mLayout->setRowMinimumHeight(5, 15);
-	mLayout->addWidget(mSaveLocationLabel, 6, 0, 1, 4);
-	mLayout->addWidget(mSaveLocationLineEdit, 7, 0, 1, 3);
-	mLayout->addWidget(mBrowseButton, 7, 3);
-	mLayout->addWidget(mOverwriteFileCheckbox, 8, 0, 1, 4);
+	mLayout->addWidget(mHideEditorAfterCaptureCheckbox, 1, 0, 1, 4);
+	mLayout->addWidget(mPromptToSaveBeforeExitCheckbox, 2, 0, 1, 4);
+	mLayout->addWidget(mRememberSaveDirectoryCheckbox, 3, 0, 1, 4);
+	mLayout->setRowMinimumHeight(4, 15);
+	mLayout->addWidget(mSaveQualityGroupBox, 5, 0, 1, 4);
+	mLayout->setRowMinimumHeight(6, 15);
+	mLayout->addWidget(mSaveLocationLabel, 7, 0, 1, 4);
+	mLayout->addWidget(mSaveLocationLineEdit, 8, 0, 1, 3);
+	mLayout->addWidget(mBrowseButton, 8, 3);
+	mLayout->addWidget(mOverwriteFileCheckbox, 9, 0, 1, 4);
 
 	setTitle(tr("Saver Settings"));
 	setLayout(mLayout);
@@ -96,6 +104,7 @@ void SaverSettings::initGui()
 void SaverSettings::loadConfig()
 {
 	mAutoSaveNewCapturesCheckbox->setChecked(mConfig->autoSaveNewCaptures());
+	mHideEditorAfterCaptureCheckbox->setChecked(mConfig->hideEditorAfterCaptureEnabled());
 	mPromptToSaveBeforeExitCheckbox->setChecked(mConfig->promptSaveBeforeExit());
 	mRememberSaveDirectoryCheckbox->setChecked(mConfig->rememberLastSaveDirectory());
 	mSaveQualityFactorSpinBox->setValue(mConfig->saveQualityFactor());
@@ -108,6 +117,7 @@ void SaverSettings::loadConfig()
 void SaverSettings::saveSettings()
 {
 	mConfig->setAutoSaveNewCaptures(mAutoSaveNewCapturesCheckbox->isChecked());
+	mConfig->setHideEditorAfterCaptureEnabled(mHideEditorAfterCaptureCheckbox->isChecked());
 	mConfig->setPromptSaveBeforeExit(mPromptToSaveBeforeExitCheckbox->isChecked());
 	mConfig->setRememberLastSaveDirectory(mRememberSaveDirectoryCheckbox->isChecked());
 	mConfig->setSaveQualityMode(getSaveQualityMode());

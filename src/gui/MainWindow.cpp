@@ -66,6 +66,7 @@ MainWindow::MainWindow(DependencyInjector *dependencyInjector) :
 	mUploadHandler(mDependencyInjector->get<IUploadHandler>()),
 	mSessionManagerRequestedQuit(false),
 	mResizeOnNormalize(false),
+	mHideEditorAfterCaptureEnabled(mConfig->hideEditorAfterCaptureEnabled()),
 	mCaptureHandler(CaptureHandlerFactory::create(mImageAnnotator, mNotificationService, mDependencyInjector, this)),
 	mPinWindowHandler(mDependencyInjector->get<IPinWindowHandler>()),
 	mVisibilityHandler(WidgetVisibilityHandlerFactory::create(this, mDependencyInjector->get<IPlatformChecker>())),
@@ -90,7 +91,7 @@ MainWindow::MainWindow(DependencyInjector *dependencyInjector) :
 
 	connect(mConfig.data(), &IConfig::annotatorConfigChanged, this, &MainWindow::setupImageAnnotator);
 
-	connect(mImageGrabber.data(), &IImageGrabber::finished, this, &MainWindow::processCapture);
+	connect(mImageGrabber.data(), &IImageGrabber::finished, this, &MainWindow::processScreenshotCapture);
 	connect(mImageGrabber.data(), &IImageGrabber::canceled, this, &MainWindow::captureCanceled);
 	connect(mImageGrabber.data(), &IImageGrabber::canceled, mActionProcessor, &ActionProcessor::captureCanceled);
 
@@ -171,24 +172,45 @@ void MainWindow::quit()
 
 void MainWindow::processCapture(const CaptureDto &capture)
 {
+	processCapture(capture, false);
+}
+
+void MainWindow::processScreenshotCapture(const CaptureDto &capture)
+{
+	auto hideEditor = mHideEditorAfterCaptureEnabled && !mActionProcessor->isActionInProgress();
+	processCapture(capture, hideEditor);
+}
+
+void MainWindow::processCapture(const CaptureDto &capture, bool hideEditor)
+{
 	if (!capture.isValid()) {
 		auto title = tr("Unable to show image");
 		auto message = tr("No image provided but one was expected.");
 		NotifyOperation operation(title, message, NotificationTypes::Critical, mNotificationService, mConfig);
 		operation.execute();
-		showEmpty();
+		hideEditor ? mVisibilityHandler->enforceHidden() : showEmpty();
 		return;
 	}
 
-	processImage(capture);
-	capturePostProcessing();
+	processImage(capture, hideEditor);
+	capturePostProcessing(hideEditor);
 }
 
 void MainWindow::processImage(const CaptureDto &capture)
 {
+	processImage(capture, false);
+}
+
+void MainWindow::processImage(const CaptureDto &capture, bool hideEditor)
+{
 	mCaptureHandler->load(capture);
 	if (!mActionProcessor->isActionInProgress()) { 	// The action processor handles the showing of the main window
-		showDefault();
+		if (hideEditor) {
+			mVisibilityHandler->enforceHidden();
+			mWindowResizer->resize();
+		} else {
+			showDefault();
+		}
 	}
 	captureChanged();
 	setEnablements(true);
@@ -217,14 +239,14 @@ bool MainWindow::isWindowMaximized()
 	return mVisibilityHandler->isMaximized();
 }
 
-void MainWindow::capturePostProcessing()
+void MainWindow::capturePostProcessing(bool hideEditor)
 {
 	if (mConfig->autoCopyToClipboardNewCaptures()) {
 		copyCaptureToClipboard();
 	}
 
 	if (mConfig->autoSaveNewCaptures()) {
-		mCaptureHandler->save();
+		mCaptureHandler->save(!hideEditor);
 	}
 }
 
@@ -247,6 +269,12 @@ void MainWindow::showDefault()
 	auto enforceVisible = mConfig->showMainWindowAfterTakingScreenshotEnabled();
 	enforceVisible ? mVisibilityHandler->enforceVisible() : mVisibilityHandler->restoreState();
 
+	mWindowResizer->resize();
+}
+
+void MainWindow::showEditor()
+{
+	mVisibilityHandler->enforceVisible();
 	mWindowResizer->resize();
 }
 
@@ -591,7 +619,7 @@ void MainWindow::initGui()
 	addToolBar(mToolBar);
 
 	if(mConfig->useTrayIcon()) {
-		connect(mTrayIcon, &TrayIcon::showEditorTriggered, [this](){ mVisibilityHandler->enforceVisible(); });
+		connect(mTrayIcon, &TrayIcon::showEditorTriggered, this, &MainWindow::showEditor);
 		mTrayIcon->setCaptureActions(mToolBar->captureActions());
 		mTrayIcon->setOpenAction(mOpenImageAction);
 		mTrayIcon->setSaveAction(mToolBar->saveAction());
@@ -740,7 +768,7 @@ void MainWindow::pasteEmbeddedFromClipboard()
 
 void MainWindow::saveClicked()
 {
-	mCaptureHandler->save();
+	mCaptureHandler->save(true);
 }
 
 void MainWindow::saveAsClicked()

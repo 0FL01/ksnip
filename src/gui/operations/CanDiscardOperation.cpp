@@ -76,7 +76,7 @@ bool CanDiscardOperation::saveImage() const
 			mFileDialogService,
 			mConfig,
 			mParent);
-	return operation.execute().isSuccessful;
+	return operation.execute(true).isSuccessful;
 }
 
 MessageBoxResponse CanDiscardOperation::getSaveBeforeDiscard() const

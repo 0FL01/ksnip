@@ -39,6 +39,7 @@ private slots:
     void RemoveImage_Should_NotRemoveTab_When_OperationDidNotDeleteImage();
     void RemoveImage_Should_RemoveTab_When_OperationDidDeleteImage();
     void SaveAll_Should_CallSaveForAllTabs_When_TabIsNotSaved();
+	void Save_Should_NotShowSuccessToast_When_SuccessToastDisabled();
 };
 
 #endif //KSNIP_MULTICAPTUREHANDLERTESTS_H

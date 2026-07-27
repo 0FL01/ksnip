@@ -79,17 +79,17 @@ bool SingleCaptureHandler::isPathValid() const
 
 void SingleCaptureHandler::saveAs()
 {
-	innerSave(false);
+	innerSave(false, true);
 }
 
-void SingleCaptureHandler::save()
+void SingleCaptureHandler::save(bool showSuccessToast)
 {
-	innerSave(true);
+	innerSave(true, showSuccessToast);
 }
 
 void SingleCaptureHandler::saveAll()
 {
-	innerSave(true);
+	innerSave(true, true);
 }
 
 void SingleCaptureHandler::rename()
@@ -135,7 +135,7 @@ void SingleCaptureHandler::reset()
 	captureChanged();
 }
 
-void SingleCaptureHandler::innerSave(bool isInstant)
+void SingleCaptureHandler::innerSave(bool isInstant, bool showSuccessToast)
 {
 	auto image = mImageAnnotator->image();
 	SaveOperation operation(
@@ -149,7 +149,7 @@ void SingleCaptureHandler::innerSave(bool isInstant)
 			mFileDialogService,
 			mConfig,
 			mParent);
-	auto saveResult = operation.execute();
+	auto saveResult = operation.execute(showSuccessToast);
 	mIsSaved = saveResult.isSuccessful;
 	if (mIsSaved) {
 		mPath =  saveResult.path;

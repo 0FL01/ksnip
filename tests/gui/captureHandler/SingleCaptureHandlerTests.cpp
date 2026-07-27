@@ -29,6 +29,9 @@
 #include "tests/mocks/gui/clipboard/ClipboardMock.h"
 #include "tests/mocks/gui/messageBoxService/MessageBoxServiceMock.h"
 #include "tests/mocks/backend/recentImages/RecentImageServiceMock.h"
+#include "tests/mocks/backend/config/ConfigMock.h"
+#include "tests/mocks/backend/saver/ImageSaverMock.h"
+#include "tests/mocks/backend/saver/SavePathProviderMock.h"
 
 
 void SingleCaptureHandlerTests::RemoveImage_Should_CleanupAnnotationData_When_ImageDeleted()
@@ -201,6 +204,45 @@ void SingleCaptureHandlerTests::Load_Should_SetPathToEmptyAndIsSavedToFalse_When
 	// assert
 	QCOMPARE(captureHandler.path(), QString());
     QCOMPARE(captureHandler.isSaved(), false);
+}
+
+void SingleCaptureHandlerTests::Save_Should_NotShowSuccessToast_When_SuccessToastDisabled()
+{
+	// arrange
+	QWidget parent;
+	ImageAnnotatorMock imageAnnotatorMock;
+	auto notificationServiceMock = QSharedPointer<NotificationServiceMock>(new NotificationServiceMock);
+	auto recentImageServiceMock = QSharedPointer<RecentImageServiceMock>(new RecentImageServiceMock);
+	auto imageSaverMock = QSharedPointer<ImageSaverMock>(new ImageSaverMock);
+	auto savePathProviderMock = QSharedPointer<SavePathProviderMock>(new SavePathProviderMock);
+	auto configMock = QSharedPointer<ConfigMock>(new ConfigMock);
+	auto path = QStringLiteral("capture.png");
+
+	EXPECT_CALL(imageAnnotatorMock, setTabBarAutoHide(testing::_));
+	EXPECT_CALL(imageAnnotatorMock, image()).WillOnce(testing::Return(QImage(1, 1, QImage::Format_ARGB32)));
+	EXPECT_CALL(*savePathProviderMock, savePath()).WillOnce(testing::Return(path));
+	EXPECT_CALL(*imageSaverMock, save(testing::_, path)).WillOnce(testing::Return(true));
+	EXPECT_CALL(*recentImageServiceMock, storeImagePath(path));
+	EXPECT_CALL(*notificationServiceMock, showInfo(testing::_, testing::_, testing::_)).Times(0);
+	EXPECT_CALL(*notificationServiceMock, showWarning(testing::_, testing::_, testing::_)).Times(0);
+	EXPECT_CALL(*notificationServiceMock, showCritical(testing::_, testing::_, testing::_)).Times(0);
+
+	SingleCaptureHandler captureHandler(
+			&imageAnnotatorMock,
+			notificationServiceMock,
+			nullptr,
+			nullptr,
+			nullptr,
+			nullptr,
+			recentImageServiceMock,
+			imageSaverMock,
+			savePathProviderMock,
+			nullptr,
+			configMock,
+			&parent);
+
+	// act
+	captureHandler.save(false);
 }
 
 TEST_MAIN(SingleCaptureHandlerTests)
