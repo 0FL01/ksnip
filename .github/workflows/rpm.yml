@@ -13,6 +13,11 @@ jobs:
     runs-on: ubuntu-24.04
     container:
       image: fedora:44
+    env:
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_COMPILERCHECK: content
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_MAXSIZE: 1G
     defaults:
       run:
         shell: bash
@@ -22,6 +27,7 @@ jobs:
         run: >-
           dnf install -y
           binutils
+          ccache
           coreutils
           cpio
           dnf5-plugins
@@ -39,6 +45,20 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
           submodules: recursive
+
+      - name: Restore compiler cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: rpm-ccache-fedora44-x86_64-gcc-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'icons/**', 'src/**', 'tests/**', 'libraries/kColorPicker/**', 'libraries/kImageAnnotator/**') }}
+          restore-keys: |
+            rpm-ccache-fedora44-x86_64-gcc-
+
+      - name: Configure compiler cache
+        run: |
+          echo /usr/lib64/ccache >> "$GITHUB_PATH"
+          ccache --max-size "$CCACHE_MAXSIZE"
+          ccache --zero-stats
 
       - name: Prepare self-contained RPM source
         id: source
@@ -97,6 +117,9 @@ jobs:
             --define "_topdir ${{ steps.source.outputs.topdir }}" \
             --define "_smp_build_ncpus 2" \
             "${{ steps.source.outputs.topdir }}/SPECS/ksnip.spec"
+
+      - name: Show compiler cache statistics
+        run: ccache --show-stats
 
       - name: Validate RPM payload and dependency closure
         run: |
