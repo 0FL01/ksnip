@@ -140,6 +140,11 @@ jobs:
           grep -Fx '/usr/share/applications/org.ksnip.ksnip.desktop' /tmp/ksnip-payload.txt
           grep -Fx '/usr/share/metainfo/org.ksnip.ksnip.appdata.xml' /tmp/ksnip-payload.txt
           grep -Fx '/usr/share/icons/hicolor/scalable/apps/ksnip.svg' /tmp/ksnip-payload.txt
+          grep -Fx '/usr/share/ksnip/translations/kImageAnnotator_da.qm' /tmp/ksnip-payload.txt
+          if grep -Fq '/usr/share/kImageAnnotator/' /tmp/ksnip-payload.txt; then
+            echo 'Bundled translations conflict with Fedora kimageannotator-common' >&2
+            exit 1
+          fi
           if grep -Eq '(^|/)(include|cmake)/|\.a$' /tmp/ksnip-payload.txt; then
             echo 'Bundled development files leaked into the application RPM' >&2
             exit 1
@@ -157,9 +162,12 @@ jobs:
             --setopt=install_weak_deps=False \
             "$main_rpm"
 
+          dnf install -y kimageannotator-common
           dnf install -y "$main_rpm"
           rpm -V ksnip
           test "$(rpm -qf /usr/bin/ksnip)" = "$(rpm -q ksnip)"
+          common_translation=/usr/share/kImageAnnotator/translations/kImageAnnotator_da.qm
+          test "$(rpm -qf "$common_translation")" = "$(rpm -q kimageannotator-common)"
           file /usr/bin/ksnip
           ldd /usr/bin/ksnip | tee /tmp/ksnip-ldd.txt
           ! grep -F 'not found' /tmp/ksnip-ldd.txt

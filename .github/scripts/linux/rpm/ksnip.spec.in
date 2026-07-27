@@ -58,6 +58,7 @@ test -f libraries/kImageAnnotator/CMakeLists.txt
     -DBUILD_TESTS:BOOL=ON \
     -DUSE_SUBMODULE_KCOLORPICKER:BOOL=ON \
     -DUSE_SUBMODULE_KIMAGEANNOTATOR:BOOL=ON \
+    -DKSNIP_KIMAGEANNOTATOR_LANG_INSTALL_DIR:STRING=%{_datadir}/%{name}/translations \
     -DVERSION_SUFIX=%{commit_count}.g%{shortcommit} \
     -DBUILD_NUMBER=%{commit}
 %cmake_build
@@ -71,6 +72,11 @@ rm -rf %{buildroot}%{_includedir}/kColorPicker-Qt6
 rm -rf %{buildroot}%{_includedir}/kImageAnnotator-Qt6
 rm -rf %{buildroot}%{_libdir}/cmake/kColorPicker-Qt6
 rm -rf %{buildroot}%{_libdir}/cmake/kImageAnnotator-Qt6
+
+mv %{buildroot}%{_datadir}/kImageAnnotator/translations/* \
+    %{buildroot}%{_datadir}/%{name}/translations/
+rmdir %{buildroot}%{_datadir}/kImageAnnotator/translations
+rmdir %{buildroot}%{_datadir}/kImageAnnotator
 
 install -Dpm0644 LICENSE.txt \
     %{buildroot}%{_datadir}/licenses/%{name}/GPL-3.0.txt
@@ -97,4 +103,3 @@ appstreamcli validate --no-net \
 %{_datadir}/icons/hicolor/scalable/apps/ksnip.svg
 %{_datadir}/metainfo/org.ksnip.ksnip.appdata.xml
 %{_datadir}/ksnip/translations
-%{_datadir}/kImageAnnotator/translations
