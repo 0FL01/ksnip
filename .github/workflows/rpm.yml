@@ -166,6 +166,7 @@ jobs:
             --setopt=install_weak_deps=False \
             "$main_rpm"
 
+          echo '%_install_langs all' > /etc/rpm/macros.image-language-conf
           dnf install -y kimageannotator-common
           dnf install -y "$main_rpm"
           rpm -V ksnip
