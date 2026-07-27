@@ -25,14 +25,32 @@ KdeWaylandImageGrabber::KdeWaylandImageGrabber(const QSharedPointer<IConfig> &co
 }
 
 KdeWaylandImageGrabber::KdeWaylandImageGrabber(WaylandSnippingArea *snippingArea,
-																					const QSharedPointer<IConfig> &config) :
+																		const QSharedPointer<IConfig> &config) :
+	KdeWaylandImageGrabber(snippingArea, config, Backend::Pending, {})
+{
+	mScreenShot2Client.probe();
+}
+
+KdeWaylandImageGrabber::KdeWaylandImageGrabber(WaylandSnippingArea *snippingArea,
+																		const QSharedPointer<IConfig> &config,
+																		Backend backend,
+																		const std::function<void(bool)> &captureRectAreaBackground) :
 	AbstractRectAreaImageGrabber(snippingArea, config),
 	mSnippingArea(snippingArea),
 	mPortalGrabber(config),
-	mBackend(Backend::Pending),
-	mRectAreaCaptureActive(false),
+	mBackend(backend),
+	mRectAreaState(RectAreaState::Idle),
+	mRectAreaCapture({ CaptureModes::RectArea, false, 0 }),
+	mCaptureRectAreaBackground(captureRectAreaBackground),
 	mPortalBusy(false)
 {
+	if (!mCaptureRectAreaBackground) {
+		mCaptureRectAreaBackground = [this](bool captureCursor) {
+			mRectAreaBackgroundClient.captureWorkspace(captureCursor);
+		};
+	}
+	mRectAreaDelayTimer.setSingleShot(true);
+
 	addSupportedCaptureMode(CaptureModes::RectArea);
 	addSupportedCaptureMode(CaptureModes::ActiveWindow);
 	addSupportedCaptureMode(CaptureModes::WindowUnderCursor);
@@ -52,6 +70,19 @@ KdeWaylandImageGrabber::KdeWaylandImageGrabber(WaylandSnippingArea *snippingArea
 
 				auto requests = mDeferredCaptures;
 				mDeferredCaptures.clear();
+				if (mBackend == Backend::ScreenShot2) {
+					bool latestRectAreaFound = false;
+					for (auto index = requests.size() - 1; index >= 0; index--) {
+						if (requests.at(index).mode != CaptureModes::RectArea) {
+							continue;
+						}
+						if (latestRectAreaFound) {
+							requests.removeAt(index);
+						} else {
+							latestRectAreaFound = true;
+						}
+					}
+				}
 				for (const auto &request : requests) {
 					grabImage(request.mode, request.captureCursor, request.delay);
 				}
@@ -70,28 +101,16 @@ KdeWaylandImageGrabber::KdeWaylandImageGrabber(WaylandSnippingArea *snippingArea
 		qWarning("KWin ScreenShot2 capture failed: %s", qPrintable(error));
 		emit canceled();
 	});
-	connect(&mRectAreaBackgroundClient, &KWinScreenShot2Client::imageReady, this, [this](const QImage &image) {
-		auto background = QPixmap::fromImage(image);
-		if (background.isNull()) {
-			qWarning("Failed to create a pixmap from the ScreenShot2 RectArea background");
-			rectAreaCaptureFinished();
-			emit canceled();
-			return;
-		}
-		mSnippingArea->showWithBackground(background);
-	});
-	connect(&mRectAreaBackgroundClient, &KWinScreenShot2Client::canceled, this, [this] {
-		rectAreaCaptureFinished();
-		emit canceled();
-	});
-	connect(&mRectAreaBackgroundClient, &KWinScreenShot2Client::failed, this, [this](const QString &error) {
-		qWarning("KWin ScreenShot2 RectArea background capture failed: %s", qPrintable(error));
-		rectAreaCaptureFinished();
-		emit canceled();
-	});
+	connect(&mRectAreaBackgroundClient, &KWinScreenShot2Client::imageReady, this,
+			&KdeWaylandImageGrabber::rectAreaBackgroundReady);
+	connect(&mRectAreaBackgroundClient, &KWinScreenShot2Client::canceled, this,
+			&KdeWaylandImageGrabber::rectAreaBackgroundCanceled);
+	connect(&mRectAreaBackgroundClient, &KWinScreenShot2Client::failed, this,
+			&KdeWaylandImageGrabber::rectAreaBackgroundFailed);
+	connect(&mRectAreaDelayTimer, &QTimer::timeout, this, &KdeWaylandImageGrabber::startRectAreaBackgroundCapture);
 	connect(mSnippingArea, &WaylandSnippingArea::canceled, this, [this] {
-		if (mRectAreaCaptureActive) {
-			rectAreaCaptureFinished();
+		if (mRectAreaState == RectAreaState::Selecting) {
+			mRectAreaState = RectAreaState::Idle;
 		}
 	});
 	connect(mSnippingArea, &WaylandSnippingArea::finished, this, &KdeWaylandImageGrabber::finishRectAreaSelection);
@@ -103,8 +122,6 @@ KdeWaylandImageGrabber::KdeWaylandImageGrabber(WaylandSnippingArea *snippingArea
 		portalRequestFinished();
 		emit canceled();
 	});
-
-	mScreenShot2Client.probe();
 }
 
 void KdeWaylandImageGrabber::grabImage(CaptureModes captureMode, bool captureCursor, int delay)
@@ -192,46 +209,111 @@ CursorDto KdeWaylandImageGrabber::getCursorWithPosition() const
 
 void KdeWaylandImageGrabber::queueRectAreaCapture(bool captureCursor, int delay)
 {
-	mRectAreaCaptures.append({ CaptureModes::RectArea, captureCursor, delay });
-	processNextRectAreaCapture();
+	DeferredCapture request { CaptureModes::RectArea, captureCursor, delay };
+	switch (mRectAreaState) {
+	case RectAreaState::Idle:
+	case RectAreaState::WaitingDelay:
+		mPendingRectAreaCapture.reset();
+		startRectAreaCapture(request);
+		break;
+	case RectAreaState::CapturingBackground:
+		mPendingRectAreaCapture = request;
+		break;
+	case RectAreaState::Selecting:
+		mRectAreaState = RectAreaState::Idle;
+		mPendingRectAreaCapture.reset();
+		mSnippingArea->closeSnippingArea();
+		startRectAreaCapture(request);
+		break;
+	}
 }
 
-void KdeWaylandImageGrabber::processNextRectAreaCapture()
+void KdeWaylandImageGrabber::startRectAreaCapture(const DeferredCapture &request)
 {
-	if (mRectAreaCaptureActive || mRectAreaCaptures.isEmpty()) {
+	mRectAreaCapture = request;
+	mRectAreaState = RectAreaState::WaitingDelay;
+	mRectAreaDelayTimer.start(request.delay);
+}
+
+void KdeWaylandImageGrabber::startRectAreaBackgroundCapture()
+{
+	if (mRectAreaState != RectAreaState::WaitingDelay) {
 		return;
 	}
 
-	mRectAreaCaptureActive = true;
-	auto request = mRectAreaCaptures.takeFirst();
-	QTimer::singleShot(request.delay, this, [this, captureCursor = request.captureCursor] {
-		mRectAreaBackgroundClient.captureWorkspace(captureCursor);
-	});
+	mRectAreaState = RectAreaState::CapturingBackground;
+	mCaptureRectAreaBackground(mRectAreaCapture.captureCursor);
+}
+
+bool KdeWaylandImageGrabber::startPendingRectAreaCapture()
+{
+	if (!mPendingRectAreaCapture.has_value()) {
+		return false;
+	}
+
+	auto request = mPendingRectAreaCapture.value();
+	mPendingRectAreaCapture.reset();
+	startRectAreaCapture(request);
+	return true;
+}
+
+void KdeWaylandImageGrabber::rectAreaBackgroundReady(const QImage &image)
+{
+	if (mRectAreaState != RectAreaState::CapturingBackground) {
+		return;
+	}
+	if (startPendingRectAreaCapture()) {
+		return;
+	}
+
+	auto background = QPixmap::fromImage(image);
+	if (background.isNull()) {
+		qWarning("Failed to create a pixmap from the ScreenShot2 RectArea background");
+		mRectAreaState = RectAreaState::Idle;
+		emit canceled();
+		return;
+	}
+
+	mRectAreaState = RectAreaState::Selecting;
+	mSnippingArea->showWithBackground(background);
+}
+
+void KdeWaylandImageGrabber::rectAreaBackgroundCanceled()
+{
+	if (mRectAreaState != RectAreaState::CapturingBackground || startPendingRectAreaCapture()) {
+		return;
+	}
+
+	mRectAreaState = RectAreaState::Idle;
+	emit canceled();
+}
+
+void KdeWaylandImageGrabber::rectAreaBackgroundFailed(const QString &error)
+{
+	qWarning("KWin ScreenShot2 RectArea background capture failed: %s", qPrintable(error));
+	if (mRectAreaState != RectAreaState::CapturingBackground || startPendingRectAreaCapture()) {
+		return;
+	}
+
+	mRectAreaState = RectAreaState::Idle;
+	emit canceled();
 }
 
 void KdeWaylandImageGrabber::finishRectAreaSelection()
 {
-	if (!mRectAreaCaptureActive) {
+	if (mRectAreaState != RectAreaState::Selecting) {
 		return;
 	}
 
 	mCaptureRect = selectedSnippingAreaRect();
 	auto capture = CaptureDto(getScreenshotFromBackground());
-	rectAreaCaptureFinished();
+	mRectAreaState = RectAreaState::Idle;
 	if (!capture.isValid()) {
 		qWarning("Failed to crop the frozen ScreenShot2 RectArea background");
 		emit canceled();
 		return;
 	}
 	emit finished(capture);
-}
-
-void KdeWaylandImageGrabber::rectAreaCaptureFinished()
-{
-	mRectAreaCaptureActive = false;
-	QTimer::singleShot(0, this, [this] {
-		processNextRectAreaCapture();
-	});
 }
 
 void KdeWaylandImageGrabber::queuePortal(const CaptureRequest &request)

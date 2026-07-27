@@ -17,6 +17,7 @@ set(UNITTEST_SRC
 	)
 
 if (UNIX AND NOT APPLE)
+	list(APPEND UNITTEST_SRC ${CMAKE_CURRENT_SOURCE_DIR}/backend/imageGrabber/KdeWaylandImageGrabberTests.cpp)
 	list(APPEND UNITTEST_SRC ${CMAKE_CURRENT_SOURCE_DIR}/gui/globalHotKeys/WaylandGlobalShortcutManagerTests.cpp)
 endif ()
 

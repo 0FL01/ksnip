@@ -185,6 +185,7 @@ QPixmap AbstractSnippingArea::background() const
 
 bool AbstractSnippingArea::closeSnippingArea()
 {
+	stopTimeout();
 	mSelector->deactivate();
 	mResizer->deactivate();
 	mSelectorInfoText->deactivate();

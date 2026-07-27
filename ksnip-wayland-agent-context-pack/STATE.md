@@ -4,7 +4,7 @@ Status: active
 Source: `00_PRIMARY_GOAL.md`, `02_MVP_SCOPE.md`, `03_MINIMAL_DESIGN.md`,
 `05_ACCEPTANCE_CRITERIA.md`, and `tasks/T00_BASELINE.md` through
 `tasks/T05_VERIFY_AND_DELIVER.md`
-Last updated: 2026-07-26
+Last updated: 2026-07-27
 
 ## Objective
 
@@ -44,12 +44,15 @@ record the exact evidence and smallest unlock.
   existing KSnip overlay and keyboard cancellation.
   - Primary evidence: focused coordinate/lifecycle tests and target-session
     capture observations.
-  - Status: verified
+  - Status: in_progress
   - Evidence: the required keyboard focus retracted fullscreen Yakuake and
     Minecraft with the transparent selector. The user-approved KDE-only frozen
     ScreenShot2 workspace background preserves both applications' content,
     retains the existing selector and Escape cancellation, and was confirmed
-    live by the user as correct and substantially faster than Spectacle.
+    live by the user as correct and substantially faster than Spectacle. A
+    focused latest-wins lifecycle suite now covers startup bursts, overlapping
+    background requests, selector replacement, Escape, and a fresh frozen crop;
+    installed-candidate burst verification remains pending.
 - R3 — One resident GlobalShortcuts portal session activates the five required
   built-in capture actions exactly once and is recreated after settings change.
   - Primary evidence: focused state/mapping tests and target-session activation
@@ -326,6 +329,13 @@ explicit Configure Global Shortcuts action completed by the user.
   all required workflows now behave correctly and feel substantially faster
   than Spectacle. R2 and R4 are verified; broader T05 stress/fallback evidence
   remains pending.
+- 2026-07-27: Fixed the RectArea burst regression caused by an unbounded KDE
+  request queue. The backend now keeps one active request and only the latest
+  replacement across delay, ScreenShot2 background capture, and selector
+  phases; silent replacement also stops the old selector timeout. The Qt 6
+  application build, three focused lifecycle cases, and the full 14-test suite
+  pass with `QT_QPA_PLATFORM=offscreen`; live verification of the newly built
+  installed candidate remains pending.
 
 ## Completion
 

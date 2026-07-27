@@ -20,6 +20,9 @@
 #ifndef KSNIP_KDEWAYLANDIMAGEGRABBER_H
 #define KSNIP_KDEWAYLANDIMAGEGRABBER_H
 
+#include <functional>
+#include <optional>
+
 #include <QList>
 #include <QTimer>
 
@@ -50,6 +53,14 @@ private:
 		Portal
 	};
 
+	enum class RectAreaState
+	{
+		Idle,
+		WaitingDelay,
+		CapturingBackground,
+		Selecting
+	};
+
 	struct CaptureRequest
 	{
 		CaptureModes mode;
@@ -70,21 +81,34 @@ private:
 	WaylandImageGrabber mPortalGrabber;
 	Backend mBackend;
 	QList<DeferredCapture> mDeferredCaptures;
-	QList<DeferredCapture> mRectAreaCaptures;
 	QList<CaptureRequest> mPortalRequests;
-	bool mRectAreaCaptureActive;
+	RectAreaState mRectAreaState;
+	DeferredCapture mRectAreaCapture;
+	std::optional<DeferredCapture> mPendingRectAreaCapture;
+	QTimer mRectAreaDelayTimer;
+	std::function<void(bool)> mCaptureRectAreaBackground;
 	bool mPortalBusy;
 
 	KdeWaylandImageGrabber(WaylandSnippingArea *snippingArea, const QSharedPointer<IConfig> &config);
+	KdeWaylandImageGrabber(WaylandSnippingArea *snippingArea,
+							 const QSharedPointer<IConfig> &config,
+							 Backend backend,
+							 const std::function<void(bool)> &captureRectAreaBackground);
 	void queueRectAreaCapture(bool captureCursor, int delay);
-	void processNextRectAreaCapture();
+	void startRectAreaCapture(const DeferredCapture &request);
+	void startRectAreaBackgroundCapture();
+	bool startPendingRectAreaCapture();
+	void rectAreaBackgroundReady(const QImage &image);
+	void rectAreaBackgroundCanceled();
+	void rectAreaBackgroundFailed(const QString &error);
 	void finishRectAreaSelection();
-	void rectAreaCaptureFinished();
 	void dispatch(const CaptureRequest &request);
 	void dispatchScreenShot2(const CaptureRequest &request);
 	void queuePortal(const CaptureRequest &request);
 	void processNextPortalRequest();
 	void portalRequestFinished();
+
+	friend class KdeWaylandImageGrabberTests;
 };
 
 #endif // KSNIP_KDEWAYLANDIMAGEGRABBER_H
