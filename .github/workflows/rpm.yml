@@ -225,7 +225,7 @@ jobs:
                 ref: 'tags/continuous'
               });
             } catch (error) {
-              if (error.status !== 404) throw error;
+              if (![404, 422].includes(error.status)) throw error;
             }
 
       - name: Publish continuous release
