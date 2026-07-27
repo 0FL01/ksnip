@@ -6,7 +6,11 @@ on:
     branches: [ master ]
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: fedora-rpm-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
 
 jobs:
   rpm:
@@ -192,3 +196,48 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
+
+      - name: Reset continuous release
+        if: github.event_name == 'push'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            try {
+              const { data: release } = await github.rest.repos.getReleaseByTag({
+                owner,
+                repo,
+                tag: 'continuous'
+              });
+              await github.rest.repos.deleteRelease({
+                owner,
+                repo,
+                release_id: release.id
+              });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+            try {
+              await github.rest.git.deleteRef({
+                owner,
+                repo,
+                ref: 'tags/continuous'
+              });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+
+      - name: Publish continuous release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
+        with:
+          tag_name: continuous
+          target_commitish: ${{ github.sha }}
+          name: Continuous Fedora 44 build
+          body: Automated Fedora 44 x86_64 build for `${{ github.sha }}`.
+          prerelease: true
+          make_latest: false
+          fail_on_unmatched_files: true
+          files: |
+            ${{ steps.source.outputs.topdir }}/RPMS/**/*.rpm
+            ${{ steps.source.outputs.topdir }}/SRPMS/*.src.rpm
