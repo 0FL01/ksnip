@@ -21,7 +21,7 @@ jobs:
       CCACHE_BASEDIR: ${{ github.workspace }}
       CCACHE_COMPILERCHECK: content
       CCACHE_DIR: ${{ github.workspace }}/.ccache
-      CCACHE_MAXSIZE: 1G
+      CCACHE_MAXSIZE: 2G
     defaults:
       run:
         shell: bash
@@ -34,6 +34,7 @@ jobs:
           ccache
           coreutils
           cpio
+          curl
           dnf5-plugins
           file
           findutils
@@ -54,9 +55,15 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.CCACHE_DIR }}
-          key: rpm-ccache-v2-fedora44-x86_64-gcc-${{ hashFiles('.github/scripts/linux/rpm/ksnip.spec.in', 'CMakeLists.txt', 'cmake/**', 'icons/**', 'src/**', 'tests/**', 'libraries/kColorPicker/**', 'libraries/kImageAnnotator/**') }}
+          key: rpm-ccache-v3-fedora44-x86_64-gcc-${{ hashFiles('.github/scripts/linux/rpm/**', 'CMakeLists.txt', 'cmake/**', 'icons/**', 'src/**', 'tests/**', 'libraries/kColorPicker/**', 'libraries/kImageAnnotator/**') }}
           restore-keys: |
-            rpm-ccache-v2-fedora44-x86_64-gcc-
+            rpm-ccache-v3-fedora44-x86_64-gcc-
+
+      - name: Restore OCR source cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ github.workspace }}/.ocr-source-cache
+          key: rpm-ocr-sources-v1-${{ hashFiles('.github/scripts/linux/rpm/ocr-sources.lock') }}
 
       - name: Configure compiler cache
         run: |
@@ -108,6 +115,14 @@ jobs:
           echo "topdir=$topdir" >> "$GITHUB_OUTPUT"
           echo "short_commit=$short_commit" >> "$GITHUB_OUTPUT"
 
+      - name: Fetch pinned OCR sources
+        run: |
+          set -euo pipefail
+          cache="$GITHUB_WORKSPACE/.ocr-source-cache"
+          topdir="${{ steps.source.outputs.topdir }}"
+          bash .github/scripts/linux/rpm/fetch-ocr-sources.sh "$cache"
+          cp -a "$cache"/. "$topdir/SOURCES/"
+
       - name: Install build dependencies
         run: |
           test "$(rpm -E '%fedora')" = 44
@@ -142,6 +157,7 @@ jobs:
           rpm -K "$main_rpm" "${source_rpms[0]}"
           rpm -qpl "$main_rpm" | tee /tmp/ksnip-payload.txt
           rpm -qp --requires "$main_rpm" | tee /tmp/ksnip-requires.txt
+          rpm -qpl "${source_rpms[0]}" | tee /tmp/ksnip-source-payload.txt
 
           grep -Fx '/usr/bin/ksnip' /tmp/ksnip-payload.txt
           grep -Fx '/usr/share/applications/org.ksnip.ksnip.desktop' /tmp/ksnip-payload.txt
@@ -160,6 +176,17 @@ jobs:
             echo 'Unexpected Qt 5 dependency in the Qt 6 RPM' >&2
             exit 1
           fi
+          if grep -Eq '\.(onnx|ort|pdiparams|traineddata)$' /tmp/ksnip-payload.txt; then
+            echo 'External OCR model files leaked into the application RPM' >&2
+            exit 1
+          fi
+          if grep -Eqi 'onnxruntime|opencv|paddle|tesseract' /tmp/ksnip-requires.txt; then
+            echo 'Unexpected shared OCR runtime dependency' >&2
+            exit 1
+          fi
+          grep -F 'onnxruntime-v1.27.0.tar.gz' /tmp/ksnip-source-payload.txt
+          grep -F 'opencv-4.12.0.tar.gz' /tmp/ksnip-source-payload.txt
+          grep -F 'v21.12.zip' /tmp/ksnip-source-payload.txt
 
           installroot="$RUNNER_TEMP/ksnip-installroot"
           dnf install -y \
@@ -179,7 +206,9 @@ jobs:
           file /usr/bin/ksnip
           ldd /usr/bin/ksnip | tee /tmp/ksnip-ldd.txt
           ! grep -F 'not found' /tmp/ksnip-ldd.txt
+          ! grep -Eqi 'onnxruntime|opencv|paddle|tesseract' /tmp/ksnip-ldd.txt
           ! readelf -d /usr/bin/ksnip | grep -E '(RPATH|RUNPATH)'
+          strings /usr/bin/ksnip | grep -F 'Recognize Text in Area'
           QT_QPA_PLATFORM=offscreen /usr/bin/ksnip --version
 
           desktop=/usr/share/applications/org.ksnip.ksnip.desktop

@@ -1,0 +1,14 @@
+# SHA-256  filename  URL
+b41d09905a3c2f3a25709d1dcce8ef3942a4c2799d1046f74be7b6bbebc45e6a  onnxruntime-v1.27.0.tar.gz  https://github.com/microsoft/onnxruntime/archive/refs/tags/v1.27.0.tar.gz
+44c106d5bb47efec04e531fd93008b3fcd1d27138985c5baf4eafac0e1ec9e9d  opencv-4.12.0.tar.gz  https://github.com/opencv/opencv/archive/refs/tags/4.12.0.tar.gz
+b2bdcf6682d8cb53df365bcc5d6c318a22e55821d9978a10fdb61404c026daff  20250814.0.zip  https://github.com/abseil/abseil-cpp/archive/refs/tags/20250814.0.zip
+f4300b96f7a304d4ef9bf6e0fa3ded72159f7f2d0f605bdde3e030a0dba7cf9f  v3.0.1.zip  https://github.com/HowardHinnant/date/archive/refs/tags/v3.0.1.zip
+6a60d76351f97132669daeeb721d6bf14b008101883ad2d687a3201c5c461eb0  eigen-1d8b82b0740839c0de7f1242a3585e3390ff5f33.zip  https://github.com/eigen-mirror/eigen/archive/1d8b82b0740839c0de7f1242a3585e3390ff5f33/eigen-1d8b82b0740839c0de7f1242a3585e3390ff5f33.zip
+57bd580c0772fd1a726c34ab8bf05325293bc5f9c165060a898afa1feeeb95e1  v23.5.26.zip  https://github.com/google/flatbuffers/archive/refs/tags/v23.5.26.zip
+c9291d95f5f6e5c561990d06a589b01d89e553d0f366f0ce723dd1788e7a6076  v4.2.1.zip  https://github.com/microsoft/GSL/archive/refs/tags/v4.2.1.zip
+81431bdc44c439a324e02c07ed067f8f556419fd86f2d8b486ff568df6aac899  boost-1.82.0.zip  https://github.com/boostorg/mp11/archive/refs/tags/boost-1.82.0.zip
+b8b56570d94ecce49fee94e6380db456bb42035722b967015c9dd6459359433e  v1.21.0.zip  https://github.com/onnx/onnx/archive/refs/tags/v1.21.0.zip
+6a31b662deaeb0ac35e6287bda2f3369b19836e6c9f8828d4da444346f420298  v21.12.zip  https://github.com/protocolbuffers/protobuf/archive/refs/tags/v21.12.zip
+357d9824b8d3f4c05f0b2287e45b4e0d982422c27b67b968eb23a643dc52b5e2  403d652dca4c1046e8145950b1c0997a9f748b57.zip  https://github.com/pytorch/cpuinfo/archive/403d652dca4c1046e8145950b1c0997a9f748b57.zip
+a835fe55fbdcd8e80f38584ab22d0840662c67f2feb36bd679402da9641dc71e  2024-07-02.zip  https://github.com/google/re2/archive/refs/tags/2024-07-02.zip
+3ffbd9a2fdff45da77da3e7269e9aa512ea43bed5c38ce8fd8f3d1068a032c3f  3.0.28.zip  https://github.com/dcleblanc/SafeInt/archive/refs/tags/3.0.28.zip

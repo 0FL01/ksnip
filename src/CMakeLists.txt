@@ -201,7 +201,9 @@ elseif (UNIX)
                 ${CMAKE_SOURCE_DIR}/src/gui/snippingArea/WaylandSnippingArea.cpp
                 ${CMAKE_SOURCE_DIR}/src/gui/globalHotKeys/keyHandler/X11KeyHandler.cpp
                 ${CMAKE_SOURCE_DIR}/src/gui/globalHotKeys/KeySequenceToX11KeyCodeTranslator.cpp
-				${CMAKE_SOURCE_DIR}/src/gui/globalHotKeys/WaylandGlobalShortcutManager.cpp
+				 ${CMAKE_SOURCE_DIR}/src/gui/globalHotKeys/WaylandGlobalShortcutManager.cpp
+				 ${CMAKE_SOURCE_DIR}/src/gui/ocr/IOcrRecognizer.h
+				 ${CMAKE_SOURCE_DIR}/src/gui/ocr/OcrCaptureWorkflow.cpp
                 ${CMAKE_SOURCE_DIR}/src/gui/globalHotKeys/X11ErrorLogger.cpp
                 ${CMAKE_SOURCE_DIR}/src/gui/notificationService/FreeDesktopNotificationService.cpp
                 ${CMAKE_SOURCE_DIR}/src/gui/notificationService/KdeDesktopNotificationService.cpp
@@ -255,6 +257,102 @@ elseif (APPLE)
         add_executable(ksnip MACOSX_BUNDLE ${KSNIP_SRCS} ${CMAKE_SOURCE_DIR}/icons/ksnip_icons.qrc ${MACOSX_ICON})
 else ()
         add_executable(ksnip ${KSNIP_SRCS} ${CMAKE_SOURCE_DIR}/icons/ksnip_icons.qrc)
+endif ()
+
+if (ENABLE_BUILTIN_OCR)
+        if (NOT UNIX OR APPLE OR NOT BUILD_WITH_QT6)
+                message(FATAL_ERROR "ENABLE_BUILTIN_OCR currently requires a Qt 6 Linux build")
+        endif ()
+
+        set(OCR_DETECTOR_MODEL "${KSNIP_OCR_MODEL_DIR}/det/inference.onnx")
+        set(OCR_RECOGNIZER_MODEL "${KSNIP_OCR_MODEL_DIR}/rec/inference.onnx")
+        set(OCR_CLIPPER_SOURCE "${KSNIP_OCR_CLIPPER_DIR}/clipper.cpp")
+        set(OCR_CLIPPER_HEADER "${KSNIP_OCR_CLIPPER_DIR}/clipper.hpp")
+        set(OCR_OPENCV_CORE "${KSNIP_OCR_OPENCV_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libopencv_core.a")
+        set(OCR_OPENCV_IMGPROC "${KSNIP_OCR_OPENCV_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libopencv_imgproc.a")
+
+        set(OCR_REQUIRED_FILES
+                "${OCR_DETECTOR_MODEL}"
+                "${OCR_RECOGNIZER_MODEL}"
+                "${KSNIP_OCR_DICTIONARY_FILE}"
+                "${OCR_CLIPPER_SOURCE}"
+                "${OCR_CLIPPER_HEADER}"
+                "${KSNIP_OCR_ORT_INCLUDE_DIR}/onnxruntime_cxx_api.h"
+                "${OCR_OPENCV_CORE}"
+                "${OCR_OPENCV_IMGPROC}"
+                )
+        foreach (OCR_REQUIRED_FILE IN LISTS OCR_REQUIRED_FILES)
+                if (NOT EXISTS "${OCR_REQUIRED_FILE}")
+                        message(FATAL_ERROR "Missing built-in OCR input: ${OCR_REQUIRED_FILE}")
+                endif ()
+        endforeach ()
+
+        file(SHA256 "${OCR_DETECTOR_MODEL}" OCR_DETECTOR_SHA256)
+        file(SHA256 "${OCR_RECOGNIZER_MODEL}" OCR_RECOGNIZER_SHA256)
+        file(SHA256 "${KSNIP_OCR_DICTIONARY_FILE}" OCR_DICTIONARY_SHA256)
+        file(SHA256 "${OCR_CLIPPER_SOURCE}" OCR_CLIPPER_SOURCE_SHA256)
+        file(SHA256 "${OCR_CLIPPER_HEADER}" OCR_CLIPPER_HEADER_SHA256)
+        if (NOT OCR_DETECTOR_SHA256 STREQUAL "c8d9b07063420ce5365c74e42532de48238feeeedcdb7a330b195708bc38a93f" OR
+                NOT OCR_RECOGNIZER_SHA256 STREQUAL "a966b18ae06292f6df1114183fa69db2fb31ab62d930d73b44b8d1bef0ae77ff" OR
+                NOT OCR_DICTIONARY_SHA256 STREQUAL "f155bbac2ce943f7138f0dcfd1a0cc0821c743579e9014da627c219bbe689b14" OR
+                NOT OCR_CLIPPER_SOURCE_SHA256 STREQUAL "711f4374ca6e80ca50d786fd53fba20db394a1bae2a8d0d71b38cff535698ec8" OR
+                NOT OCR_CLIPPER_HEADER_SHA256 STREQUAL "e37c594a918940da4e5d0436c5ab91bd0f6148e6c16a5e9d362514ca8f3923e7")
+                message(FATAL_ERROR "Built-in OCR input hash mismatch")
+        endif ()
+
+        file(GLOB OCR_ABSEIL_LIBRARIES "${KSNIP_OCR_ORT_BUILD}/_deps/abseil_cpp-build/absl/*/*.a")
+        list(SORT OCR_ABSEIL_LIBRARIES)
+        set(OCR_ORT_LIBRARIES
+                "${KSNIP_OCR_ORT_BUILD}/libonnxruntime_session.a"
+                "${KSNIP_OCR_ORT_BUILD}/libonnxruntime_optimizer.a"
+                "${KSNIP_OCR_ORT_BUILD}/libonnxruntime_providers.a"
+                "${KSNIP_OCR_ORT_BUILD}/libonnxruntime_lora.a"
+                "${KSNIP_OCR_ORT_BUILD}/libonnxruntime_framework.a"
+                "${KSNIP_OCR_ORT_BUILD}/libonnxruntime_graph.a"
+                "${KSNIP_OCR_ORT_BUILD}/libonnxruntime_util.a"
+                "${KSNIP_OCR_ORT_BUILD}/libonnxruntime_mlas.a"
+                "${KSNIP_OCR_ORT_BUILD}/libonnxruntime_common.a"
+                "${KSNIP_OCR_ORT_BUILD}/libonnxruntime_flatbuffers.a"
+                "${KSNIP_OCR_ORT_BUILD}/_deps/onnx-build/libonnx.a"
+                "${KSNIP_OCR_ORT_BUILD}/_deps/onnx-build/libonnx_proto.a"
+                "${KSNIP_OCR_ORT_BUILD}/_deps/protobuf-build/libprotobuf-lite.a"
+                "${KSNIP_OCR_ORT_BUILD}/_deps/flatbuffers-build/libflatbuffers.a"
+                "${KSNIP_OCR_ORT_BUILD}/_deps/pytorch_cpuinfo-build/libcpuinfo.a"
+                ${OCR_ABSEIL_LIBRARIES}
+                )
+        foreach (OCR_ORT_LIBRARY IN LISTS OCR_ORT_LIBRARIES)
+                if (NOT EXISTS "${OCR_ORT_LIBRARY}")
+                        message(FATAL_ERROR "Missing reduced ONNX Runtime archive: ${OCR_ORT_LIBRARY}")
+                endif ()
+        endforeach ()
+
+        configure_file(
+                ${CMAKE_SOURCE_DIR}/src/gui/ocr/OcrResources.qrc.in
+                ${CMAKE_CURRENT_BINARY_DIR}/OcrResources.qrc
+                @ONLY)
+        qt6_add_big_resources(OCR_RESOURCE_OBJECTS
+                ${CMAKE_CURRENT_BINARY_DIR}/OcrResources.qrc
+                OPTIONS -no-compress)
+        target_compile_options(rcc_object_OcrResources PRIVATE -fno-lto)
+
+        target_sources(ksnip PRIVATE
+                ${CMAKE_SOURCE_DIR}/src/gui/ocr/PaddleOcrRecognizer.cpp
+                ${OCR_CLIPPER_SOURCE}
+                ${OCR_RESOURCE_OBJECTS})
+        target_include_directories(ksnip PRIVATE
+                ${KSNIP_OCR_ORT_INCLUDE_DIR}
+                ${KSNIP_OCR_OPENCV_PREFIX}/include/opencv4
+                ${KSNIP_OCR_CLIPPER_DIR})
+        target_compile_definitions(ksnip PRIVATE KSNIP_BUILTIN_OCR)
+        target_compile_options(ksnip PRIVATE -ffunction-sections -fdata-sections)
+        target_link_options(ksnip PRIVATE -Wl,--gc-sections)
+        target_link_libraries(ksnip
+                -Wl,--start-group
+                ${OCR_ORT_LIBRARIES}
+                -Wl,--end-group
+                ${OCR_OPENCV_IMGPROC}
+                ${OCR_OPENCV_CORE}
+                z dl m pthread rt)
 endif ()
 
 set(DEPENDENCY_LIBRARIES

@@ -327,6 +327,9 @@ public:
 	MOCK_METHOD(QKeySequence, portalHotKey, (), (const, override));
 	MOCK_METHOD(void, setPortalHotKey, (const QKeySequence &keySequence), (override));
 
+	MOCK_METHOD(QKeySequence, ocrHotKey, (), (const, override));
+	MOCK_METHOD(void, setOcrHotKey, (const QKeySequence &keySequence), (override));
+
 	// Actions
 
 	MOCK_METHOD(QList<Action>, actions, (), (override));

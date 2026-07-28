@@ -1,17 +1,18 @@
-# Goal: Native KDE Wayland capture and shortcuts
+# Goal: Native KDE Wayland capture, shortcuts, and offline OCR
 
 Status: active
 Source: `00_PRIMARY_GOAL.md`, `02_MVP_SCOPE.md`, `03_MINIMAL_DESIGN.md`,
 `05_ACCEPTANCE_CRITERIA.md`, and `tasks/T00_BASELINE.md` through
-`tasks/T05_VERIFY_AND_DELIVER.md`
-Last updated: 2026-07-27
+`tasks/T06_OFFLINE_OCR.md`
+Last updated: 2026-07-28
 
 ## Objective
 
 Deliver a locally installable Qt 6 KSnip for KDE Plasma Wayland that uses KWin
 ScreenShot2 for the five required capture modes, uses the GlobalShortcuts
 portal for their resident shortcuts, retains the generic Screenshot portal
-fallback, and satisfies the required `dist/` contract.
+fallback, and adds the separately approved offline RU/EN RectArea-to-clipboard
+OCR workflow.
 
 ## Execution directive
 
@@ -79,6 +80,75 @@ record the exact evidence and smallest unlock.
   contains every required artifact.
   - Primary evidence: `test-report.md`, artifact inventory, and SHA-256 check.
   - Status: pending
+- R6 — One selected in-process recognizer handles fixed RU/EN screenshot text
+  offline without runtime downloads or system OCR/inference packages.
+  - Acceptance: pinned RU, EN, and mixed fixtures pass the frozen output and
+    resource gates in a network-disabled installed environment.
+  - Primary evidence: conversion/parity report, focused fixtures, ELF/RPM
+    dependency inspection, and isolated runtime observation.
+  - Status: in_progress
+  - Evidence: conversion, fixture parity, static closure, and production-class
+    smoke checks pass without a dynamic OCR dependency or external model file.
+    The user-local candidate recognized a live mixed Russian/English screenshot;
+    the result also exposed expected model-level homoglyph and monospace-code
+    errors that remain part of the quality assessment. The local RPM now
+    contains only embedded model data and adds no OCR runtime requirement or
+    shared-library dependency. The user confirmed RU/EN OCR from the installed
+    RPM initially appeared to succeed with networking fully disabled, but a
+    subsequent repeat exposed that the packaged workflow can finish without a
+    clipboard write. The corrected RCC build embeds non-zero model resources and
+    the user confirmed live recognition from the exact rebuilt RPM; a repeat
+    with networking disabled remains pending. A ten-line live RU/EN benchmark
+    preserved every line and its order with 6.89% raw CER and 5.75% CER after
+    excluding the repeated line-number separator; ordinary prose measured 1.21%
+    CER, while mixed-script homoglyphs and escaped code punctuation dominated
+    the remaining errors.
+- R7 — RectArea OCR writes only non-empty recognized text to the clipboard and
+  bypasses the editor, auto-save, and image-clipboard paths.
+  - Acceptance: one accepted OCR request produces at most one text write;
+    Escape, error, empty output, and repeated activation preserve prior state.
+  - Primary evidence: focused workflow tests and target-session observation.
+  - Status: verified
+  - Evidence: focused routing/concurrency tests cover successful, Escape, empty,
+    error, and repeated activation paths. The user installed the exact RPM and
+    initially confirmed live OCR, Escape, and repeated-hotkey behavior, but then
+    reproduced an installed-RPM run where no recognized text reached the
+    clipboard. The root cause was zero-length Qt big resources produced by the
+    LTO-compiled two-pass RCC object. With LTO disabled only for that object, the
+    user confirmed the exact rebuilt RPM again writes recognized text to the
+    clipboard; focused tests retain cancellation, empty, error, and repeat
+    coverage.
+- R8 — OCR is activated as one built-in shortcut in the existing resident
+  GlobalShortcuts session without changing the five capture mappings.
+  - Acceptance: the sixth stable ID activates OCR exactly once and settings
+    recreation preserves the existing capture actions.
+  - Primary evidence: focused mapping/session tests and target activation.
+  - Status: verified
+  - Evidence: the portal manager now emits stable IDs; the existing five IDs
+    retain their exact capture mappings and `ocr.rect_area` emits the dedicated
+    OCR workflow signal. One persisted `Alt+Shift+O` preference and settings row
+    are included only in built-in OCR builds. Focused mapping, portal, and
+    workflow tests pass; the user assigned and successfully activated the OCR
+    shortcut in the target session and confirmed it still works after installing
+    and restarting the exact RPM candidate.
+- R9 — The Qt 6 application and local RPM build include the one selected OCR
+  engine and embedded model data and pass affected regression checks.
+  - Acceptance: local build/tests pass; installed OCR runs offline with no
+    external model files or new OCR shared-library dependency.
+  - Primary evidence: build/test commands, package inventory, dependency
+    inspection, and installed fixture result.
+  - Status: in_progress
+  - Evidence: the OCR-enabled Fedora 44 binary RPM and complete SRPM build
+    successfully from the immutable source closure. `%check` passes all 18 Qt 6
+    tests. Package inventory, `Requires`, `readelf`, and `ldd` show embedded-only
+    models and no dynamic OCR dependency. Installation and live recognition
+    from this exact RPM pass in the target session. The installed binary is
+    byte-identical to the extracted RPM payload and is the running process. The
+    user later reproduced a package-only missing clipboard result, invalidating
+    final installed acceptance. The resource-target fix was then rebuilt into an
+    RPM whose ELF contains each pinned model/dictionary blob exactly once; the
+    user confirmed live recognition works. Network-disabled acceptance for this
+    corrected package remains pending.
 
 ### Constraints
 
@@ -97,6 +167,9 @@ record the exact evidence and smallest unlock.
   ScreenCast, compositor commands, custom-action shortcuts, packaging formats,
   or broad mixed-DPI/settings redesign.
 - Optional LastRectArea and unrelated cleanup.
+- A second production OCR engine, daemon, runtime engine selection/download,
+  language UI, document layout reconstruction, GPU acceleration, OCR history,
+  or replacement of the existing plugin-based editor OCR.
 
 ## Change envelope
 
@@ -118,8 +191,13 @@ record the exact evidence and smallest unlock.
   workspace image before activating the existing selector and crop that frozen
   image locally. This exception is limited to preserving focus-sensitive
   fullscreen content and does not change generic Wayland or GNOME behavior.
-- Forbidden expansion: new dependency, service, daemon, persistent state,
-  generic transport framework, public API redesign, or unrelated refactor.
+- T06 expansion: one selected static CPU OCR engine and its pinned model data,
+  one private recognizer boundary/worker, one built-in shortcut and setting,
+  embedded production-only resources, focused tests, and RPM source/license
+  inputs are allowed.
+- Forbidden expansion: a second production engine, service, daemon, runtime
+  download, persistent state, generic transport/action framework, public API
+  redesign, or unrelated refactor.
 
 ## Baseline
 
@@ -132,18 +210,20 @@ record the exact evidence and smallest unlock.
 - Qt version: 6.11.1 runtime and development packages.
 - ScreenShot2 API version: 5.
 - GlobalShortcuts portal version: 2.
+- OCR follow-up baseline: clean `master` at
+  `9d1c8034` (`feat(saver): add stealth screenshot mode`), matching
+  `origin/master`.
 
 ## Current checkpoint
 
-- Phase: T05 — Residual acceptance evidence
-- Closes: R1, R3, and R5
-- Smallest next action: retain the user-approved installed candidate; run the
-  remaining selected-window, forced-fallback, repetition, and quantitative
-  latency checks only if full context-pack closure resumes.
-- Expected evidence: the remaining mandatory observations recorded in
-  `test-report.md`, without changing the accepted capture implementation.
-- Stop or replan if: a remaining check reproduces a failure in an explicit
-  required outcome; do not add speculative hardening or unrelated cleanup.
+- Phase: T06 — corrected installed offline acceptance
+- Closes: R6 and R9
+- Smallest next action: repeat one successful OCR request from the corrected
+  `/usr/bin/ksnip` while networking is disabled.
+- Expected evidence: recognized text reaches the clipboard and the runtime log
+  contains no resource, inference, subprocess, or download failure.
+- Stop or replan if: the corrected package attempts network access or fails only
+  when networking is unavailable.
 
 ## Completed
 
@@ -155,6 +235,12 @@ record the exact evidence and smallest unlock.
 - [x] User-local installer (automated and live launch/restart evidence)
 - [ ] Acceptance tests
 - [x] `dist/` delivery (live report pending)
+- [x] Offline RU/EN OCR engine feasibility gate
+- [x] RectArea-to-clipboard vertical slice
+- [x] OCR shortcut and settings (automated and live activation evidence)
+- [x] OCR-enabled RPM and SRPM immutable source closure
+- [ ] Network-disabled installed OCR acceptance
+- [ ] Embedded local build and installed acceptance
 
 ## Current evidence
 
@@ -271,6 +357,14 @@ explicit Configure Global Shortcuts action completed by the user.
   and minimizes fullscreen Minecraft. This narrowly supersedes the original
   no-workspace-crop constraint for KDE RectArea only; generic/GNOME paths and
   the existing selector remain unchanged.
+- 2026-07-27: The user approved the audited T06 plan and explicitly authorized
+  iterative implementation and local builds. T05 residual live evidence is
+  retained honestly but no longer blocks the separately approved OCR follow-up.
+  T06 selects one engine through sequential gates, starting with Paddle/ONNX;
+  Tesseract is evaluated only after a concrete Paddle blocker.
+- 2026-07-27: The reduced static Paddle/ONNX closure is credible enough for
+  production integration, so Paddle/ONNX remains the sole selected engine and
+  the sequential Tesseract fallback is not activated.
 
 ## Checkpoint history
 
@@ -336,12 +430,152 @@ explicit Configure Global Shortcuts action completed by the user.
   application build, three focused lifecycle cases, and the full 14-test suite
   pass with `QT_QPA_PLATFORM=offscreen`; live verification of the newly built
   installed candidate remains pending.
+- 2026-07-27: T06 Paddle conversion gate passed in ignored
+  `build-ocr-spike/`. Python 3.12.12, Paddle 3.2.2, Paddle2ONNX 2.1.0,
+  ONNX 1.17.0, and ONNX Runtime 1.27.0 converted both pinned PIR models at
+  opset 17 without patches or custom operators. ONNX checker and CPU sessions
+  pass. Detector dynamic inputs `128x128` and `256x384`, recognizer widths 160
+  and 640 with batch sizes 1 and 2, and the nominal inputs match Paddle with
+  `rtol=1e-4, atol=1e-5`; maximum observed absolute difference is
+  `3.7252903e-06`. Final ONNX hashes are detector
+  `c8d9b07063420ce5365c74e42532de48238feeeedcdb7a330b195708bc38a93f`
+  (4,766,440 bytes) and recognizer
+  `a966b18ae06292f6df1114183fa69db2fb31ab62d930d73b44b8d1bef0ae77ff`
+  (7,882,715 bytes). Advanced to fixture-level parity before any application
+  source change.
+- 2026-07-27: T06 fixture parity passed on generated English light-theme,
+  Russian dark-theme, and mixed multiline screenshot-like PNGs using the pinned
+  PaddleOCR preprocessing, DB postprocessing, perspective crops, dictionary,
+  and CTC decoder. Paddle and ORT produced identical threshold maps, final
+  boxes, CTC argmax IDs, and decoded text; maximum detector-map difference was
+  `5.7697296142578125e-05` (`rtol=1e-4`, `atol=1e-4`) and maximum recognizer
+  difference was `5.602836608886719e-06`. EN and RU gold text were exact. The
+  mixed fixture exposed identical model-level Latin/Cyrillic homoglyph errors
+  (`О/O`, `e/е`, `c/с`), which is a quality-corpus input rather than a
+  conversion mismatch. Advanced to the standalone static CPU closure.
+- 2026-07-27: T06 standalone static CPU closure passed. A C++17 harness linked
+  reduced-operator non-minimal ONNX Runtime 1.27.0, OpenCV 4.12.0 core/imgproc,
+  and Clipper 6.4.2 statically, loaded both models and the exact dictionary from
+  embedded read-only bytes, and reproduced all three frozen fixture outputs.
+  Thirty repeats passed with session initialization `189.397 ms`, fixture p50
+  `120.489 ms`, p95 `184.153 ms`, and peak RSS `186148 KiB` on the current host.
+  The stripped ELF is `25,163,752` bytes. `readelf`/`ldd` show only zlib and the
+  normal C/C++ runtime libraries; the link map contains only OpenCV core and
+  imgproc and no codec or shared ORT provider. `strace -f` recorded one harness
+  `execve`, the three expected PPM opens, and no model/dictionary file access,
+  subprocess, or network attempt. Advanced to the fake capture-to-clipboard
+  vertical slice before linking the engine into KSnip.
+- 2026-07-27: T06 fake capture-to-clipboard vertical slice passed. A private
+  `OcrCaptureWorkflow` now owns the OCR purpose at the shared grabber result
+  boundary, passes ordinary captures and cancellations to the unchanged editor
+  pipeline, deep-copies accepted OCR pixels on the GUI thread, and runs an
+  injected recognizer through `QtConcurrent`. It writes normalized non-empty
+  text exactly once and suppresses editor/action/image-clipboard handling for
+  OCR cancellation, empty output, and errors. `OcrCaptureWorkflowTests` passes
+  all eight fake-recognizer routing/concurrency cases under offscreen Qt; the
+  real Qt 6 `ksnip` target builds successfully with `--parallel 2`. Advanced to
+  the sole selected Paddle recognizer and production-only embedded resources.
+- 2026-07-27: T06 production Paddle recognizer integration passed locally. The
+  production-only `PaddleOcrRecognizer` ports the proven static pipeline, lazily
+  loads pinned detector/recognizer/dictionary bytes from an uncompressed Qt big
+  resource, and serializes inference off the GUI thread. CMake verifies exact
+  model, dictionary, and Clipper hashes and links the reduced static ORT,
+  OpenCV core/imgproc, and Clipper closure only into `ksnip`; large resources
+  remain outside `KSNIP_SRCS` and the shared test archive. A focused ignored
+  production-class smoke executable reproduced all three frozen fixture texts.
+  `cmake --build build-agent --target ksnip --parallel 2` passed, and
+  `readelf`/`ldd` show no dynamic OCR, ORT, OpenCV, Paddle, or Tesseract
+  dependency. Advanced to the sixth built-in shortcut and persisted setting.
+- 2026-07-27: T06 built-in shortcut integration passed automated gates. The
+  existing portal manager now reports stable IDs, `GlobalHotKeyHandler` maps
+  the five capture IDs unchanged and emits a dedicated signal for
+  `ocr.rect_area`, and OCR-enabled builds expose one persisted
+  `Alt+Shift+O` preference and settings row. OCR starts only when no ordinary
+  capture is pending and reuses the existing single-flight workflow. Focused
+  `GlobalHotKeyHandlerTests`, `WaylandGlobalShortcutManagerTests`, and
+  `OcrCaptureWorkflowTests` pass 3/3 under offscreen Qt; the OCR-enabled
+  `ksnip` target builds successfully with `--parallel 2`, and `git diff
+  --check` passes. Advanced to the user-local installed/live gate.
+- 2026-07-27: The user installed the stripped OCR-enabled candidate under the
+  user-local desktop identity, assigned the built-in OCR shortcut, and confirmed
+  the target workflow captures an area and places mixed Russian/English text in
+  the clipboard. The live sample showed model-level Latin/Cyrillic homoglyph
+  substitutions (`уже` -> `ужe`, `тестов` -> `теcтов`, `OCR` -> `0CR`) plus
+  monospace code/punctuation errors (`libexec` -> `iibexec` and lost shell
+  punctuation). These match the known mixed-fixture model limitation rather
+  than a Paddle-to-ONNX or C++ parity difference. Advanced to immutable RPM
+  source and offline package closure; no heuristic text rewriting was added.
+- 2026-07-28: T06 immutable RPM closure passed locally. The first full
+  `rpmbuild -ba` validation attempt linked test GTest/GMock from the active
+  Miniconda environment into the otherwise system-Qt build and failed with a
+  PCRE2 ABI mismatch. Repeating the same build with Conda variables removed and
+  a system-only `PATH` required no source change and succeeded. `%check` passed
+  18/18 tests. The binary RPM is `5,703,052` bytes with SHA-256
+  `55ffe84d89934e28c585c1a802090553c39c47c580536a786c56b1354c9bdf2c`;
+  its installed size is `34,282,648` bytes. The complete SRPM is `425,131,179`
+  bytes with SHA-256
+  `68e742de76c474691a6b9b0d6f683a819c8cd571704956973822e1e39684a43e` and
+  contains Source0 plus all 13 hash-locked dependency archives. Package payload
+  inspection found no external model/dictionary file, RPM `Requires` and ELF
+  `DT_NEEDED` contain no ORT/OpenCV/Paddle/Tesseract dependency, no RPATH is
+  present, and the packaged executable exposes the OCR settings text. Advanced
+  to installation and target-session acceptance of this exact RPM; it remains
+  a local artifact named from the uncommitted `9d1c8034` baseline.
+- 2026-07-28: The user installed the exact local RPM and confirmed OCR, Escape,
+  repeated activation, and restart behavior work in the target KDE Wayland
+  session. `rpm -q` reports the expected NEVRA, the running executable resolves
+  to `/usr/bin/ksnip`, and no user-local desktop override remains. Installed
+  `/usr/bin/ksnip` is byte-identical to the extracted RPM payload with SHA-256
+  `08094e19e104bdd5c245efda7cc539999689da576f01f3088a399a6b1cf37c78`.
+  R7 and R8 are verified; advanced to the final network-disabled installed OCR
+  check for R6 and R9.
+- 2026-07-28: The user confirmed the installed RPM continues to recognize text
+  with networking fully disabled. Together with the embedded-only package
+  payload, dependency audit, exact installed-binary identity, and prior fixture
+  parity/runtime traces, this verifies R6 and R9 and closes T06.
+- 2026-07-28: The user subsequently reproduced an installed-RPM OCR run that
+  completed without writing text to the clipboard while the local candidate
+  remained working. This later evidence invalidates the installed acceptance
+  above and reopens R6, R7, and R9. Package diagnostics found that RPM LTO flags
+  leaked into nested ORT/OpenCV static builds and the final link reported an ORT
+  `Ort::Exception` ODR warning; the next package rebuild isolates those
+  dependencies from LTO and logs recognizer exceptions without OCR text.
+- 2026-07-28: The corrected dependency closure removed the ODR warning, but the
+  exact installed RPM logged `Missing embedded OCR resource`. A minimal Qt probe
+  reproduced the package flags: `qt6_add_big_resources` pass 1 compiled with
+  GCC LTO registered zero-length resources, while adding `-fno-lto` only to
+  `rcc_object_OcrResources` exposed the exact detector, recognizer, and dictionary
+  sizes. The production CMake now applies that narrow resource-target fix.
+- 2026-07-28: The rebuilt RPM retained Fedora LTO for KSnip while compiling only
+  `rcc_object_OcrResources` with the trailing `-fno-lto`; all 18 tests passed,
+  the ELF contained each exact model/dictionary blob once, and package/ELF
+  dependency checks remained clean. The user reinstalled that exact package and
+  confirmed RectArea OCR again writes text to the clipboard, verifying R7.
+- 2026-07-28: A user-run ten-line benchmark retained 10/10 lines in order. Raw
+  character edit distance was 37/537 (6.89% CER); excluding the synthetic `NN |`
+  prefix gave 28/487 (5.75%), and the prose subset gave 2/165 (1.21%). Main
+  failures were Latin/Cyrillic homoglyphs, `O/0`, `|/I/І`, escaped `\\n`, smart
+  quotes, and a trailing underscore; no heuristic substitutions were added.
+- 2026-07-28: A bounded terminal-style A/B rendered the same ten-line RU/EN/code
+  sample at 16, 20, and 24 px on a 1920x1080 dark Noto Sans Mono fixture. Raising
+  detector long-side input from 960 to 1536 or 1920 changed mean CER from 5.22%
+  to 5.28% and 5.03%, while mean detector time rose from 259 ms to 484 ms and
+  838 ms. At the existing 960 input, recognizer resize filters measured 5.22%
+  CER for linear, 5.46% for cubic, and 5.71% for Lanczos. Neither candidate is a
+  stable accuracy win, so the production preprocessing remains unchanged and no
+  terminal-specific heuristic was added.
 
 ## Completion
 
-- Resolved outcomes: none.
-- Commands and artifacts: automated build/test/install evidence and complete
-  `dist/` are present; live evidence is pending.
-- Constraint and diff-scope check: automated check passed; final check pending
-  live evidence.
-- Final status: active at T05; R1-R5 await their target-session observations.
+- Resolved outcomes: R7 and R8 are verified; R6 and R9 await only the corrected
+  package's network-disabled runtime check.
+- Commands and artifacts: model conversion/parity reports, static and production
+  fixture smoke checks, focused and full Qt 6 tests, complete binary RPM/SRPM,
+  package/ELF dependency inspection, exact installed-payload identity, and live
+  corrected-package recognition are recorded above.
+- Constraint and diff-scope check: the prior package closure remains valid, but
+  final target-session behavior is not currently accepted; no second OCR engine,
+  external model, runtime downloader, service, or OCR shared dependency was
+  added.
+- Final status: T06 active until the corrected exact RPM repeats successful OCR
+  with networking disabled.

@@ -116,6 +116,7 @@ public:
 	static QString activeWindowHotKeyString();
 	static QString windowUnderCursorHotKeyString();
 	static QString portalHotKeyString();
+	static QString ocrHotKeyString();
 	static QString uploaderTypeString();
 	static QString canvasColorString();
 	static QString actionsString();

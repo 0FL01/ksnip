@@ -342,6 +342,9 @@ public:
 	QKeySequence portalHotKey() const override;
 	void setPortalHotKey(const QKeySequence &keySequence) override;
 
+	QKeySequence ocrHotKey() const override;
+	void setOcrHotKey(const QKeySequence &keySequence) override;
+
 	// Actions
 
 	QList<Action> actions() override;

@@ -533,7 +533,7 @@ void WaylandGlobalShortcutManager::portalActivated(const QDBusObjectPath &sessio
 
 	for(const auto &shortcut : mShortcuts) {
 		if(shortcut.id == shortcutId) {
-			emit activated(shortcut.captureMode);
+			emit activated(shortcutId);
 			return;
 		}
 	}

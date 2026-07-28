@@ -337,6 +337,9 @@ public:
 	virtual QKeySequence portalHotKey() const = 0;
 	virtual void setPortalHotKey(const QKeySequence &keySequence) = 0;
 
+	virtual QKeySequence ocrHotKey() const = 0;
+	virtual void setOcrHotKey(const QKeySequence &keySequence) = 0;
+
 	// Actions
 
 	virtual QList<Action> actions() = 0;

@@ -1348,6 +1348,20 @@ void Config::setPortalHotKey(const QKeySequence &keySequence)
 	emit hotKeysChanged();
 }
 
+QKeySequence Config::ocrHotKey() const
+{
+	return loadValue(ConfigOptions::ocrHotKeyString(), QKeySequence(Qt::ALT | Qt::SHIFT | Qt::Key_O)).value<QKeySequence>();
+}
+
+void Config::setOcrHotKey(const QKeySequence &keySequence)
+{
+	if (ocrHotKey() == keySequence) {
+		return;
+	}
+	saveValue(ConfigOptions::ocrHotKeyString(), keySequence);
+	emit hotKeysChanged();
+}
+
 // Actions
 
 QList<Action> Config::actions()

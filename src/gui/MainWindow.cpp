@@ -67,6 +67,7 @@ MainWindow::MainWindow(DependencyInjector *dependencyInjector) :
 	mSessionManagerRequestedQuit(false),
 	mResizeOnNormalize(false),
 	mHideEditorAfterCaptureEnabled(mConfig->hideEditorAfterCaptureEnabled()),
+	mCapturePending(false),
 	mCaptureHandler(CaptureHandlerFactory::create(mImageAnnotator, mNotificationService, mDependencyInjector, this)),
 	mPinWindowHandler(mDependencyInjector->get<IPinWindowHandler>()),
 	mVisibilityHandler(WidgetVisibilityHandlerFactory::create(this, mDependencyInjector->get<IPlatformChecker>())),
@@ -76,6 +77,12 @@ MainWindow::MainWindow(DependencyInjector *dependencyInjector) :
 	mSavePathProvider(mDependencyInjector->get<ISavePathProvider>()),
 	mOcrWindowHandler(mDependencyInjector->get<IOcrWindowHandler>()),
 	mDelayHandler(mDependencyInjector->get<IDelayHandler>())
+#ifdef UNIX_X11
+	,mOcrCaptureWorkflow(new OcrCaptureWorkflow(mClipboard, this))
+#ifdef KSNIP_BUILTIN_OCR
+	,mOcrRecognizer(new PaddleOcrRecognizer)
+#endif
+#endif
 {
 	initGui();
 
@@ -91,12 +98,46 @@ MainWindow::MainWindow(DependencyInjector *dependencyInjector) :
 
 	connect(mConfig.data(), &IConfig::annotatorConfigChanged, this, &MainWindow::setupImageAnnotator);
 
-	connect(mImageGrabber.data(), &IImageGrabber::finished, this, &MainWindow::processScreenshotCapture);
-	connect(mImageGrabber.data(), &IImageGrabber::canceled, this, &MainWindow::captureCanceled);
+#ifdef UNIX_X11
+	connect(mImageGrabber.data(), &IImageGrabber::finished, mOcrCaptureWorkflow, &OcrCaptureWorkflow::processCapture);
+	connect(mImageGrabber.data(), &IImageGrabber::canceled, mOcrCaptureWorkflow, &OcrCaptureWorkflow::processCancellation);
+	connect(mOcrCaptureWorkflow, &OcrCaptureWorkflow::editorCaptureReady, this, [this](const CaptureDto &capture) {
+		mCapturePending = false;
+		processScreenshotCapture(capture);
+	});
+	connect(mOcrCaptureWorkflow, &OcrCaptureWorkflow::editorCaptureCanceled, this, [this] {
+		mCapturePending = false;
+		captureCanceled();
+	});
+	connect(mOcrCaptureWorkflow, &OcrCaptureWorkflow::editorCaptureCanceled, mActionProcessor, &ActionProcessor::captureCanceled);
+	connect(mOcrCaptureWorkflow, &OcrCaptureWorkflow::captureReleased, this, [this] {
+		mCapturePending = false;
+		mVisibilityHandler->restoreState();
+	});
+	connect(mOcrCaptureWorkflow, &OcrCaptureWorkflow::captureRequested, this, [this] {
+		auto isMainWindowVisible = !isMinimized();
+		auto adjustedDelay = mDelayHandler->getDelay(0, isMainWindowVisible);
+		hideMainWindowIfRequired();
+		mCapturePending = true;
+		mImageGrabber->grabImage(CaptureModes::RectArea, false, adjustedDelay);
+	});
+#else
+	connect(mImageGrabber.data(), &IImageGrabber::finished, this, [this](const CaptureDto &capture) {
+		mCapturePending = false;
+		processScreenshotCapture(capture);
+	});
+	connect(mImageGrabber.data(), &IImageGrabber::canceled, this, [this] {
+		mCapturePending = false;
+		captureCanceled();
+	});
 	connect(mImageGrabber.data(), &IImageGrabber::canceled, mActionProcessor, &ActionProcessor::captureCanceled);
+#endif
 
 	connect(mGlobalHotKeyHandler, &GlobalHotKeyHandler::captureTriggered, this, &MainWindow::triggerCapture);
 	connect(mGlobalHotKeyHandler, &GlobalHotKeyHandler::actionTriggered, this, &MainWindow::actionTriggered);
+#ifdef KSNIP_BUILTIN_OCR
+	connect(mGlobalHotKeyHandler, &GlobalHotKeyHandler::ocrRectAreaTriggered, this, &MainWindow::triggerOcrCapture);
+#endif
 
 	connect(mUploadHandler.data(), &IUploadHandler::finished, this, &MainWindow::uploadFinished);
 
@@ -157,8 +198,24 @@ void MainWindow::setPosition()
 
 void MainWindow::captureScreenshot(CaptureModes captureMode, bool captureCursor, int delay)
 {
+#ifdef UNIX_X11
+	if (mOcrCaptureWorkflow->isCapturePending()) {
+		return;
+	}
+#endif
+	mCapturePending = true;
 	mImageGrabber->grabImage(captureMode, captureCursor, delay);
 }
+
+#ifdef KSNIP_BUILTIN_OCR
+void MainWindow::triggerOcrCapture()
+{
+	if(mCapturePending || !mCaptureHandler->canTakeNew()) {
+		return;
+	}
+	mOcrCaptureWorkflow->start(mOcrRecognizer);
+}
+#endif
 
 void MainWindow::quit()
 {

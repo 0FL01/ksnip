@@ -37,7 +37,7 @@ GlobalHotKeyHandler::GlobalHotKeyHandler(
 #ifdef Q_OS_LINUX
 	if(mPlatformChecker->isWayland()) {
 		mWaylandShortcutManager = new WaylandGlobalShortcutManager(this);
-		connect(mWaylandShortcutManager, &WaylandGlobalShortcutManager::activated, this, &GlobalHotKeyHandler::captureTriggered);
+		connect(mWaylandShortcutManager, &WaylandGlobalShortcutManager::activated, this, &GlobalHotKeyHandler::waylandShortcutActivated);
 		connect(QCoreApplication::instance(), &QCoreApplication::aboutToQuit, mWaylandShortcutManager, &WaylandGlobalShortcutManager::stop);
 	}
 #endif
@@ -83,6 +83,9 @@ void GlobalHotKeyHandler::setupHotKeys()
 	createHotKey(mConfig->activeWindowHotKey(), CaptureModes::ActiveWindow);
 	createHotKey(mConfig->windowUnderCursorHotKey(), CaptureModes::WindowUnderCursor);
 	createHotKey(mConfig->portalHotKey(), CaptureModes::Portal);
+#ifdef KSNIP_BUILTIN_OCR
+	createOcrHotKey(mConfig->ocrHotKey());
+#endif
 
 	auto actions = mConfig->actions();
 	for (const auto& action : actions) {
@@ -120,6 +123,17 @@ void GlobalHotKeyHandler::createHotKey(const Action &action)
 	}
 }
 
+#ifdef KSNIP_BUILTIN_OCR
+void GlobalHotKeyHandler::createOcrHotKey(const QKeySequence &keySequence)
+{
+	if(mSupportedCaptureModes.contains(CaptureModes::RectArea) && !keySequence.isEmpty()) {
+		auto hotKey = QSharedPointer<GlobalHotKey>(new GlobalHotKey(QApplication::instance(), keySequence, mPlatformChecker));
+		connect(hotKey.data(), &GlobalHotKey::pressed, this, &GlobalHotKeyHandler::ocrRectAreaTriggered);
+		mGlobalHotKeys.append(hotKey);
+	}
+}
+#endif
+
 void GlobalHotKeyHandler::setEnabled(bool enabled)
 {
 	if(mEnabled == enabled) {
@@ -153,6 +167,9 @@ void GlobalHotKeyHandler::setupWaylandHotKeys()
 	addWaylandShortcut(shortcuts, QLatin1String("capture.current_screen"), tr("Capture current screen"), mConfig->currentScreenHotKey(), CaptureModes::CurrentScreen);
 	addWaylandShortcut(shortcuts, QLatin1String("capture.active_window"), tr("Capture active window"), mConfig->activeWindowHotKey(), CaptureModes::ActiveWindow);
 	addWaylandShortcut(shortcuts, QLatin1String("capture.select_window"), tr("Select window to capture"), mConfig->windowUnderCursorHotKey(), CaptureModes::WindowUnderCursor);
+#ifdef KSNIP_BUILTIN_OCR
+	addWaylandShortcut(shortcuts, QLatin1String("ocr.rect_area"), tr("Recognize text in area"), mConfig->ocrHotKey(), CaptureModes::RectArea);
+#endif
 	mWaylandShortcutManager->start(shortcuts);
 }
 
@@ -163,7 +180,41 @@ void GlobalHotKeyHandler::addWaylandShortcut(QList<WaylandGlobalShortcutManager:
 													 CaptureModes captureMode) const
 {
 	if(mSupportedCaptureModes.contains(captureMode)) {
-		shortcuts.append({ id, description, keySequence, captureMode });
+		shortcuts.append({ id, description, keySequence });
 	}
+}
+
+void GlobalHotKeyHandler::waylandShortcutActivated(const QString &shortcutId)
+{
+	CaptureModes captureMode;
+	if(captureModeForShortcutId(shortcutId, &captureMode)) {
+		emit captureTriggered(captureMode);
+	} else if(isOcrShortcutId(shortcutId)) {
+		emit ocrRectAreaTriggered();
+	}
+}
+
+bool GlobalHotKeyHandler::captureModeForShortcutId(const QString &shortcutId, CaptureModes *captureMode)
+{
+	Q_ASSERT(captureMode != nullptr);
+	if(shortcutId == QLatin1String("capture.rect_area")) {
+		*captureMode = CaptureModes::RectArea;
+	} else if(shortcutId == QLatin1String("capture.full_screen")) {
+		*captureMode = CaptureModes::FullScreen;
+	} else if(shortcutId == QLatin1String("capture.current_screen")) {
+		*captureMode = CaptureModes::CurrentScreen;
+	} else if(shortcutId == QLatin1String("capture.active_window")) {
+		*captureMode = CaptureModes::ActiveWindow;
+	} else if(shortcutId == QLatin1String("capture.select_window")) {
+		*captureMode = CaptureModes::WindowUnderCursor;
+	} else {
+		return false;
+	}
+	return true;
+}
+
+bool GlobalHotKeyHandler::isOcrShortcutId(const QString &shortcutId)
+{
+	return shortcutId == QLatin1String("ocr.rect_area");
 }
 #endif

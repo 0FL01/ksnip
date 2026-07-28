@@ -9,13 +9,32 @@ Version:        @VERSION@
 Release:        @RELEASE@%{?dist}
 Summary:        Screenshot and annotation tool
 
-License:        GPL-2.0-or-later AND LGPL-2.0-or-later AND LGPL-3.0-or-later AND FSFAP
+License:        GPL-2.0-or-later AND LGPL-2.0-or-later AND LGPL-3.0-or-later AND FSFAP AND Apache-2.0 AND MIT AND BSL-1.0 AND BSD-2-Clause AND BSD-3-Clause AND MPL-2.0
 URL:            https://github.com/0FL01/ksnip
 Source0:        %{name}-%{version}.tar.gz
+Source1:        https://github.com/microsoft/onnxruntime/archive/refs/tags/v1.27.0.tar.gz#/onnxruntime-v1.27.0.tar.gz
+Source2:        https://github.com/opencv/opencv/archive/refs/tags/4.12.0.tar.gz#/opencv-4.12.0.tar.gz
+Source3:        https://github.com/abseil/abseil-cpp/archive/refs/tags/20250814.0.zip
+Source4:        https://github.com/HowardHinnant/date/archive/refs/tags/v3.0.1.zip
+Source5:        https://github.com/eigen-mirror/eigen/archive/1d8b82b0740839c0de7f1242a3585e3390ff5f33/eigen-1d8b82b0740839c0de7f1242a3585e3390ff5f33.zip
+Source6:        https://github.com/google/flatbuffers/archive/refs/tags/v23.5.26.zip
+Source7:        https://github.com/microsoft/GSL/archive/refs/tags/v4.2.1.zip
+Source8:        https://github.com/boostorg/mp11/archive/refs/tags/boost-1.82.0.zip
+Source9:        https://github.com/onnx/onnx/archive/refs/tags/v1.21.0.zip
+Source10:       https://github.com/protocolbuffers/protobuf/archive/refs/tags/v21.12.zip
+Source11:       https://github.com/pytorch/cpuinfo/archive/403d652dca4c1046e8145950b1c0997a9f748b57.zip
+Source12:       https://github.com/google/re2/archive/refs/tags/2024-07-02.zip
+Source13:       https://github.com/dcleblanc/SafeInt/archive/refs/tags/3.0.28.zip
 
 BuildRequires:  cmake
+BuildRequires:  gcc
 BuildRequires:  gcc-c++
+BuildRequires:  git-core
 BuildRequires:  ninja-build
+BuildRequires:  python3
+BuildRequires:  python3-flatbuffers
+BuildRequires:  python3-packaging
+BuildRequires:  zlib-devel
 BuildRequires:  extra-cmake-modules
 BuildRequires:  cmake(Qt6Core)
 BuildRequires:  cmake(Qt6Gui)
@@ -42,24 +61,40 @@ Suggests:       xdg-desktop-portal-kde
 
 Provides:       bundled(kcolorpicker) = 0.3.1
 Provides:       bundled(kimageannotator) = 0.7.2
+Provides:       bundled(onnxruntime) = 1.27.0
+Provides:       bundled(opencv) = 4.12.0
+Provides:       bundled(clipper) = 6.4.2
 
 %description
 KSnip is a cross-platform screenshot and annotation application. This Fedora
-build statically includes the pinned kColorPicker and kImageAnnotator sources.
+build statically includes the pinned kColorPicker and kImageAnnotator sources,
+plus an offline Russian and English area-OCR engine and embedded model data.
 
 %prep
 %autosetup -n %{name}-%{version}
 test -f libraries/kColorPicker/CMakeLists.txt
 test -f libraries/kImageAnnotator/CMakeLists.txt
+bash .github/scripts/linux/rpm/fetch-ocr-sources.sh %{_sourcedir} --offline
+test -f src/gui/ocr/models/det/inference.onnx
+test -f src/gui/ocr/models/rec/inference.onnx
 
 %build
+ocr_build_root="$PWD/ocr-dependencies"
+bash .github/scripts/linux/rpm/build-ocr-dependencies.sh \
+    %{_sourcedir} \
+    "$ocr_build_root" \
+    %{?_smp_build_ncpus}
 %cmake \
     -DCMAKE_BUILD_TYPE=RelWithDebInfo \
     -DBUILD_WITH_QT6:BOOL=ON \
     -DBUILD_SHARED_LIBS:BOOL=OFF \
     -DBUILD_TESTS:BOOL=ON \
+    -DENABLE_BUILTIN_OCR:BOOL=ON \
     -DUSE_SUBMODULE_KCOLORPICKER:BOOL=ON \
     -DUSE_SUBMODULE_KIMAGEANNOTATOR:BOOL=ON \
+    -DKSNIP_OCR_ORT_BUILD:PATH="$ocr_build_root/ort/Release" \
+    -DKSNIP_OCR_ORT_INCLUDE_DIR:PATH="$ocr_build_root/src/onnxruntime-1.27.0/include/onnxruntime/core/session" \
+    -DKSNIP_OCR_OPENCV_PREFIX:PATH="$ocr_build_root/opencv-prefix" \
     -DKSNIP_KIMAGEANNOTATOR_LANG_INSTALL_DIR:STRING=%{_datadir}/%{name}/translations \
     -DVERSION_SUFIX=%{commit_count}.g%{shortcommit} \
     -DBUILD_NUMBER=%{commit}
@@ -86,6 +121,10 @@ install -Dpm0644 libraries/kColorPicker/LICENSE \
     %{buildroot}%{_datadir}/licenses/%{name}/kColorPicker-LGPL-3.0.txt
 install -Dpm0644 libraries/kImageAnnotator/LICENSE \
     %{buildroot}%{_datadir}/licenses/%{name}/kImageAnnotator-LGPL-3.0.txt
+install -Dpm0644 src/gui/ocr/MODEL_PROVENANCE.md \
+    %{buildroot}%{_datadir}/licenses/%{name}/OCR-MODEL-PROVENANCE.md
+cp -a src/gui/ocr/licenses/. \
+    %{buildroot}%{_datadir}/licenses/%{name}/
 
 %check
 QT_QPA_PLATFORM=offscreen ctest \

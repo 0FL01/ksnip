@@ -61,6 +61,13 @@
 #include "src/dependencyInjector/DependencyInjector.h"
 #include "src/plugins/IPluginManager.h"
 
+#ifdef UNIX_X11
+#include "src/gui/ocr/OcrCaptureWorkflow.h"
+#ifdef KSNIP_BUILTIN_OCR
+#include "src/gui/ocr/PaddleOcrRecognizer.h"
+#endif
+#endif
+
 
 class MainWindow : public QMainWindow, public ICaptureChangeListener, public IImageProcessor, public IResizableWindow, public IDragContentProvider
 {
@@ -102,6 +109,7 @@ private:
 	bool mSessionManagerRequestedQuit;
 	bool mResizeOnNormalize;
 	bool mHideEditorAfterCaptureEnabled;
+	bool mCapturePending;
 	QAction *mSaveAsAction;
 	QAction *mSaveAllAction;
 	QAction *mUploadAction;
@@ -147,6 +155,12 @@ private:
 	ActionProcessor *mActionProcessor;
 	QSharedPointer<IOcrWindowHandler> mOcrWindowHandler;
 	QSharedPointer<IDelayHandler> mDelayHandler;
+#ifdef UNIX_X11
+	OcrCaptureWorkflow *mOcrCaptureWorkflow;
+#ifdef KSNIP_BUILTIN_OCR
+	QSharedPointer<IOcrRecognizer> mOcrRecognizer;
+#endif
+#endif
 
     void setEnablements(bool enabled);
     void loadSettings();
@@ -194,6 +208,9 @@ private slots:
 	void actionTriggered(const Action &action);
 	void showAfterAction(bool minimized);
 	void showOcrWindow();
+#ifdef KSNIP_BUILTIN_OCR
+	void triggerOcrCapture();
+#endif
 };
 
 #endif // KSNIP_MAINWINDOW_H

@@ -1,0 +1,7 @@
+<!DOCTYPE RCC><RCC version="1.0">
+<qresource prefix="/ocr">
+	<file alias="det.onnx">@OCR_DETECTOR_MODEL@</file>
+	<file alias="rec.onnx">@OCR_RECOGNIZER_MODEL@</file>
+	<file alias="dictionary.bin">@KSNIP_OCR_DICTIONARY_FILE@</file>
+</qresource>
+</RCC>

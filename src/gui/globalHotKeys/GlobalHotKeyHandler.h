@@ -48,6 +48,7 @@ public:
 
 signals:
 	void captureTriggered(CaptureModes captureMode) const;
+	void ocrRectAreaTriggered() const;
 	void actionTriggered(const Action &action) const;
 
 private:
@@ -64,6 +65,9 @@ private:
 	void removeHotKeys();
 	void createHotKey(const QKeySequence &keySequence, CaptureModes captureMode);
 	void createHotKey(const Action &action);
+#ifdef KSNIP_BUILTIN_OCR
+	void createOcrHotKey(const QKeySequence &keySequence);
+#endif
 #ifdef Q_OS_LINUX
 	void setupWaylandHotKeys();
 	void addWaylandShortcut(QList<WaylandGlobalShortcutManager::Shortcut> &shortcuts,
@@ -71,6 +75,10 @@ private:
 								const QString &description,
 								const QKeySequence &keySequence,
 								CaptureModes captureMode) const;
+	void waylandShortcutActivated(const QString &shortcutId);
+	static bool captureModeForShortcutId(const QString &shortcutId, CaptureModes *captureMode);
+	static bool isOcrShortcutId(const QString &shortcutId);
+	friend class GlobalHotKeyHandlerTests;
 #endif
 
 private slots:

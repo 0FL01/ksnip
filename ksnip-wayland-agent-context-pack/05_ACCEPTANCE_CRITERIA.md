@@ -81,3 +81,20 @@ build-info.txt
 test-report.md
 source.patch
 ```
+
+## Follow-up offline OCR
+
+For the separately approved T06 objective:
+
+- The configured OCR shortcut opens the existing RectArea selection flow and
+  produces at most one plain-text clipboard write.
+- OCR success bypasses the editor, image clipboard, and auto-save paths.
+- Escape, capture failure, recognition failure, and empty output leave the
+  existing clipboard unchanged.
+- Fixed Russian, English, mixed Cyrillic/Latin, punctuation, and multiline
+  fixtures pass the thresholds frozen before production integration.
+- Model loading and inference run outside the GUI thread.
+- Installed OCR works without network access, external model files, or system
+  OCR/inference runtime packages.
+- Existing capture modes, five portal shortcuts, and automated tests continue
+  to pass.

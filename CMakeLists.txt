@@ -38,6 +38,17 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(BUILD_TESTS "Build Unit Tests" OFF)
 option(USE_SUBMODULE_KCOLORPICKER "Build kColorPicker from submodule" OFF)
 option(USE_SUBMODULE_KIMAGEANNOTATOR "Build kImageAnnotator from submodule" OFF)
+option(ENABLE_BUILTIN_OCR "Build the bundled offline OCR workflow" OFF)
+
+set(KSNIP_OCR_ORT_BUILD "" CACHE PATH "Path to the reduced static ONNX Runtime build")
+set(KSNIP_OCR_ORT_INCLUDE_DIR "" CACHE PATH "Path to the ONNX Runtime include directory")
+set(KSNIP_OCR_OPENCV_PREFIX "" CACHE PATH "Path to the minimal static OpenCV prefix")
+set(KSNIP_OCR_CLIPPER_DIR "${CMAKE_SOURCE_DIR}/src/gui/ocr/third_party/clipper" CACHE PATH
+	"Path to the pinned Clipper 6.4.2 sources")
+set(KSNIP_OCR_MODEL_DIR "${CMAKE_SOURCE_DIR}/src/gui/ocr/models" CACHE PATH
+	"Path to the converted OCR model directory")
+set(KSNIP_OCR_DICTIONARY_FILE "${CMAKE_SOURCE_DIR}/src/gui/ocr/models/dictionary.bin" CACHE FILEPATH
+	"Path to the recognizer dictionary blob")
 
 if (UNIX AND NOT APPLE)
 	# Without ECM we're unable to load XCB

@@ -22,6 +22,7 @@ qrc_*.cpp
 ui_*.h
 Makefile*
 *build-*
+!/.github/scripts/linux/rpm/build-ocr-dependencies.sh
 
 # QtCreator
 *.autosave
@@ -73,6 +74,7 @@ perf.data*
 # other
 .directory
 /dist/
+/.ocr-source-cache/
 
 # snap
 /parts/

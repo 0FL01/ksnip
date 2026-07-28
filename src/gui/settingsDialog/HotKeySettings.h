@@ -47,6 +47,9 @@ private:
 	QLabel *mActiveWindowLabel;
 	QLabel *mWindowUnderCursorLabel;
 	QLabel *mPortalLabel;
+#ifdef KSNIP_BUILTIN_OCR
+	QLabel *mOcrLabel;
+#endif
 	KeySequenceLineEdit *mRectAreaKeySequenceLineEdit;
 	KeySequenceLineEdit *mLastRectAreaKeySequenceLineEdit;
 	KeySequenceLineEdit *mFullScreenKeySequenceLineEdit;
@@ -54,6 +57,9 @@ private:
 	KeySequenceLineEdit *mActiveWindowKeySequenceLineEdit;
 	KeySequenceLineEdit *mWindowUnderCursorKeySequenceLineEdit;
 	KeySequenceLineEdit *mPortalKeySequenceLineEdit;
+#ifdef KSNIP_BUILTIN_OCR
+	KeySequenceLineEdit *mOcrKeySequenceLineEdit;
+#endif
 	QPushButton *mRectAreaClearPushButton;
 	QPushButton *mLastRectAreaClearPushButton;
 	QPushButton *mFullScreenClearPushButton;
@@ -61,6 +67,9 @@ private:
 	QPushButton *mActiveWindowClearPushButton;
 	QPushButton *mWindowUnderCursorClearPushButton;
 	QPushButton *mPortalClearPushButton;
+#ifdef KSNIP_BUILTIN_OCR
+	QPushButton *mOcrClearPushButton;
+#endif
 	QGridLayout *mLayout;
 	QList<CaptureModes> mCaptureModes;
 	QSharedPointer<IConfig> mConfig;

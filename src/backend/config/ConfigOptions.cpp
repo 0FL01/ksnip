@@ -584,6 +584,11 @@ QString ConfigOptions::portalHotKeyString()
 	return hotKeysSectionString() + QLatin1String("PortalHotKey");
 }
 
+QString ConfigOptions::ocrHotKeyString()
+{
+	return hotKeysSectionString() + QLatin1String("OcrHotKey");
+}
+
 QString ConfigOptions::applicationSectionString()
 {
 	return QLatin1String("Application/");

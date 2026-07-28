@@ -40,8 +40,6 @@
 #include <QTimer>
 #include <QVariantMap>
 
-#include "src/common/enum/CaptureModes.h"
-
 using PortalShortcut = QPair<QString, QVariantMap>;
 using PortalShortcutList = QList<PortalShortcut>;
 
@@ -60,7 +58,6 @@ public:
 		QString id;
 		QString description;
 		QKeySequence keySequence;
-		CaptureModes captureMode;
 	};
 
 	explicit WaylandGlobalShortcutManager(QObject *parent = nullptr);
@@ -74,7 +71,7 @@ public:
 	static void registerDBusTypes();
 
 signals:
-	void activated(CaptureModes captureMode);
+	void activated(const QString &shortcutId);
 
 private:
 	enum class RequestKind

@@ -31,6 +31,9 @@ HotKeySettings::HotKeySettings(const QList<CaptureModes> &captureModes, const QS
 	mActiveWindowLabel(new QLabel(this)),
 	mWindowUnderCursorLabel(new QLabel(this)),
 	mPortalLabel(new QLabel(this)),
+#ifdef KSNIP_BUILTIN_OCR
+	mOcrLabel(new QLabel(this)),
+#endif
 	mRectAreaClearPushButton(new QPushButton(this)),
 	mLastRectAreaClearPushButton(new QPushButton(this)),
 	mFullScreenClearPushButton(new QPushButton(this)),
@@ -38,6 +41,9 @@ HotKeySettings::HotKeySettings(const QList<CaptureModes> &captureModes, const QS
 	mActiveWindowClearPushButton(new QPushButton(this)),
 	mWindowUnderCursorClearPushButton(new QPushButton(this)),
 	mPortalClearPushButton(new QPushButton(this)),
+#ifdef KSNIP_BUILTIN_OCR
+	mOcrClearPushButton(new QPushButton(this)),
+#endif
 	mLayout(new QGridLayout(this))
 {
 	Q_ASSERT(mConfig != nullptr);
@@ -56,6 +62,9 @@ HotKeySettings::~HotKeySettings()
 	delete mActiveWindowLabel;
 	delete mWindowUnderCursorLabel;
 	delete mPortalLabel;
+#ifdef KSNIP_BUILTIN_OCR
+	delete mOcrLabel;
+#endif
 	delete mRectAreaKeySequenceLineEdit;
 	delete mLastRectAreaKeySequenceLineEdit;
 	delete mFullScreenKeySequenceLineEdit;
@@ -63,6 +72,9 @@ HotKeySettings::~HotKeySettings()
 	delete mActiveWindowKeySequenceLineEdit;
 	delete mWindowUnderCursorKeySequenceLineEdit;
 	delete mPortalKeySequenceLineEdit;
+#ifdef KSNIP_BUILTIN_OCR
+	delete mOcrKeySequenceLineEdit;
+#endif
 	delete mRectAreaClearPushButton;
 	delete mLastRectAreaClearPushButton;
 	delete mFullScreenClearPushButton;
@@ -70,6 +82,9 @@ HotKeySettings::~HotKeySettings()
 	delete mActiveWindowClearPushButton;
 	delete mWindowUnderCursorClearPushButton;
 	delete mPortalClearPushButton;
+#ifdef KSNIP_BUILTIN_OCR
+	delete mOcrClearPushButton;
+#endif
 	delete mLayout;
 }
 
@@ -83,6 +98,9 @@ void HotKeySettings::saveSettings()
 	mConfig->setActiveWindowHotKey(mActiveWindowKeySequenceLineEdit->value());
 	mConfig->setWindowUnderCursorHotKey(mWindowUnderCursorKeySequenceLineEdit->value());
 	mConfig->setPortalHotKey(mPortalKeySequenceLineEdit->value());
+#ifdef KSNIP_BUILTIN_OCR
+	mConfig->setOcrHotKey(mOcrKeySequenceLineEdit->value());
+#endif
 }
 
 void HotKeySettings::initGui()
@@ -95,11 +113,19 @@ void HotKeySettings::initGui()
 	mActiveWindowKeySequenceLineEdit = new KeySequenceLineEdit(this, allowedKeys, mPlatformChecker);
 	mWindowUnderCursorKeySequenceLineEdit = new KeySequenceLineEdit(this, allowedKeys, mPlatformChecker);
 	mPortalKeySequenceLineEdit = new KeySequenceLineEdit(this, allowedKeys, mPlatformChecker);
+#ifdef KSNIP_BUILTIN_OCR
+	mOcrKeySequenceLineEdit = new KeySequenceLineEdit(this, allowedKeys, mPlatformChecker);
+#endif
 
 	mEnableGlobalHotKeysCheckBox->setText(tr("Enable Global HotKeys"));
 	if(mPlatformChecker->isWayland()) {
+#ifdef KSNIP_BUILTIN_OCR
+		mEnableGlobalHotKeysCheckBox->setToolTip(tr("On Wayland, the desktop portal manages the six built-in capture and OCR shortcuts.\n"
+											       "KSnip key sequences are initial preferences; use Options > Configure Global Shortcuts to change active bindings."));
+#else
 		mEnableGlobalHotKeysCheckBox->setToolTip(tr("On Wayland, the desktop portal manages the five built-in capture shortcuts.\n"
 											       "KSnip key sequences are initial preferences; use Options > Configure Global Shortcuts to change active bindings."));
+#endif
 	} else {
 		mEnableGlobalHotKeysCheckBox->setToolTip(tr("Disabling this option makes the action shortcuts ksnip only."));
 	}
@@ -112,6 +138,9 @@ void HotKeySettings::initGui()
 	mActiveWindowLabel->setText(tr("Capture active Window") + QLatin1String(":"));
 	mWindowUnderCursorLabel->setText(tr("Capture Window under Cursor") + QLatin1String(":"));
 	mPortalLabel->setText(tr("Capture using Portal") + QLatin1String(":"));
+#ifdef KSNIP_BUILTIN_OCR
+	mOcrLabel->setText(tr("Recognize Text in Area") + QLatin1String(":"));
+#endif
 
 	auto clearText = tr("Clear");
 	mRectAreaClearPushButton->setText(clearText);
@@ -134,6 +163,11 @@ void HotKeySettings::initGui()
 
     mPortalClearPushButton->setText(clearText);
     connect(mPortalClearPushButton, &QPushButton::clicked, mPortalKeySequenceLineEdit, &KeySequenceLineEdit::clear);
+
+#ifdef KSNIP_BUILTIN_OCR
+	mOcrClearPushButton->setText(clearText);
+	connect(mOcrClearPushButton, &QPushButton::clicked, mOcrKeySequenceLineEdit, &KeySequenceLineEdit::clear);
+#endif
 
 	mLayout->setAlignment(Qt::AlignTop);
 	mLayout->setColumnStretch(1, 1);
@@ -167,6 +201,12 @@ void HotKeySettings::initGui()
     mLayout->addWidget(mPortalKeySequenceLineEdit, 7, 1, 1, 1);
     mLayout->addWidget(mPortalClearPushButton, 7, 2, 1, 1);
 
+#ifdef KSNIP_BUILTIN_OCR
+	mLayout->addWidget(mOcrLabel, 8, 0, 1, 1);
+	mLayout->addWidget(mOcrKeySequenceLineEdit, 8, 1, 1, 1);
+	mLayout->addWidget(mOcrClearPushButton, 8, 2, 1, 1);
+#endif
+
 	setTitle(tr("Global HotKeys"));
 	setLayout(mLayout);
 }
@@ -182,6 +222,9 @@ void HotKeySettings::loadConfig()
 	mActiveWindowKeySequenceLineEdit->setValue(mConfig->activeWindowHotKey());
 	mWindowUnderCursorKeySequenceLineEdit->setValue(mConfig->windowUnderCursorHotKey());
 	mPortalKeySequenceLineEdit->setValue(mConfig->portalHotKey());
+#ifdef KSNIP_BUILTIN_OCR
+	mOcrKeySequenceLineEdit->setValue(mConfig->ocrHotKey());
+#endif
 	globalHotKeysStateChanged();
 }
 
@@ -223,4 +266,10 @@ void HotKeySettings::globalHotKeysStateChanged()
     mPortalLabel->setEnabled(hotKeysEnabled && isPortalSupported);
     mPortalKeySequenceLineEdit->setEnabled(hotKeysEnabled && isPortalSupported);
     mPortalClearPushButton->setEnabled(hotKeysEnabled && isPortalSupported);
+
+#ifdef KSNIP_BUILTIN_OCR
+	mOcrLabel->setEnabled(hotKeysEnabled && isRectAreaSupported);
+	mOcrKeySequenceLineEdit->setEnabled(hotKeysEnabled && isRectAreaSupported);
+	mOcrClearPushButton->setEnabled(hotKeysEnabled && isRectAreaSupported);
+#endif
 }

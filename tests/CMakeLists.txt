@@ -20,7 +20,9 @@ set(UNITTEST_SRC
 
 if (UNIX AND NOT APPLE)
 	list(APPEND UNITTEST_SRC ${CMAKE_CURRENT_SOURCE_DIR}/backend/imageGrabber/KdeWaylandImageGrabberTests.cpp)
+	list(APPEND UNITTEST_SRC ${CMAKE_CURRENT_SOURCE_DIR}/gui/globalHotKeys/GlobalHotKeyHandlerTests.cpp)
 	list(APPEND UNITTEST_SRC ${CMAKE_CURRENT_SOURCE_DIR}/gui/globalHotKeys/WaylandGlobalShortcutManagerTests.cpp)
+	list(APPEND UNITTEST_SRC ${CMAKE_CURRENT_SOURCE_DIR}/gui/ocr/OcrCaptureWorkflowTests.cpp)
 endif ()
 
 set(TESTUTILS_SRC

@@ -1,7 +1,8 @@
 # Execution order
 
 Execute strictly in this order. Do not start a later phase while the current
-one is red.
+one is red. T06 is a separately approved follow-up objective; its work does not
+claim that the retained T05 live-evidence items passed.
 
 ## Phase 0 — baseline
 
@@ -51,6 +52,11 @@ the build-tree executable.
 
 Run the acceptance checklist, create `dist/`, compute checksum, and write the
 test report.
+
+## Phase 6 — offline RU/EN area OCR
+
+Follow `tasks/T06_OFFLINE_OCR.md`. Keep engine feasibility, application routing,
+shortcut integration, and installed acceptance as separate gated checkpoints.
 
 Suggested commit boundaries:
 
