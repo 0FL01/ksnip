@@ -134,6 +134,7 @@ jobs:
           set -euo pipefail
           rpmbuild -ba \
             --define "_topdir ${{ steps.source.outputs.topdir }}" \
+            --define "_smp_build_ncpus 2" \
             "${{ steps.source.outputs.topdir }}/SPECS/ksnip.spec"
 
       - name: Show compiler cache statistics
