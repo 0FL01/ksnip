@@ -305,7 +305,7 @@ void KdeWaylandImageGrabber::finishRectAreaSelection()
 		return;
 	}
 
-	mCaptureRect = selectedSnippingAreaRect();
+	mCaptureRect = mSnippingArea->selectedRectAreaForBackground(snippingAreaBackground().size());
 	auto capture = CaptureDto(getScreenshotFromBackground());
 	mRectAreaState = RectAreaState::Idle;
 	if (!capture.isValid()) {

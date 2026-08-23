@@ -26,7 +26,20 @@ public:
 
 	QRect selectedRectArea() const override
 	{
-		return { 1, 1, 2, 2 };
+		return mSelectedRectArea;
+	}
+
+	void setSelectedRectArea(const QRect &rect)
+	{
+		mSelectedRectArea = rect;
+	}
+
+	void selectRectArea(const QPointF &from, const QPointF &to)
+	{
+		auto selector = findChild<SnippingAreaSelector *>();
+		selector->handleMousePress(from);
+		selector->handleMouseMove(to);
+		selector->handleMouseRelease();
 	}
 
 	int showCount() const
@@ -64,6 +77,7 @@ protected:
 
 private:
 	int mShowCount;
+	QRect mSelectedRectArea { 1, 1, 2, 2 };
 };
 
 QSharedPointer<ConfigMock> createConfig()
@@ -204,6 +218,7 @@ void KdeWaylandImageGrabberTests::GrabImage_Should_StartFreshRectAreaCapture_Whe
 	QTRY_COMPARE(backgroundRequests.size(), 2);
 	QVERIFY(backgroundRequests.constLast());
 	grabber.mRectAreaBackgroundClient.imageReady(createBackground());
+	snippingArea->selectRectArea({ 1, 1 }, { 3, 3 });
 	QTest::keyClick(snippingArea, Qt::Key_Return);
 
 	QCOMPARE(canceledCount, 1);
@@ -212,6 +227,32 @@ void KdeWaylandImageGrabberTests::GrabImage_Should_StartFreshRectAreaCapture_Whe
 	QCOMPARE(screenshot.toImage().pixelColor(0, 0), QColor(Qt::red));
 	QCOMPARE(screenshot.toImage().pixelColor(1, 1), QColor(Qt::yellow));
 	QCOMPARE(grabber.mRectAreaState, KdeWaylandImageGrabber::RectAreaState::Idle);
+}
+
+void KdeWaylandImageGrabberTests::GrabImage_Should_CropLogicalBackground_When_PrimaryScreenDprDiffers()
+{
+	auto config = createConfig();
+	auto snippingArea = new TestWaylandSnippingArea(config);
+	snippingArea->setSelectedRectArea({ 2, 2, 4, 4 });
+	int backgroundRequestCount = 0;
+	KdeWaylandImageGrabber grabber(snippingArea,
+									config,
+									KdeWaylandImageGrabber::Backend::ScreenShot2,
+									[&backgroundRequestCount](bool) { backgroundRequestCount++; });
+	QPixmap screenshot;
+	connect(&grabber, &IImageGrabber::finished, [&screenshot](const CaptureDto &capture) {
+		screenshot = capture.screenshot;
+	});
+
+	grabber.grabImage(CaptureModes::RectArea, false, 0);
+	QTRY_COMPARE(backgroundRequestCount, 1);
+	grabber.mRectAreaBackgroundClient.imageReady(createBackground());
+	snippingArea->selectRectArea({ 1, 1 }, { 3, 3 });
+	QTest::keyClick(snippingArea, Qt::Key_Return);
+
+	QCOMPARE(screenshot.size(), QSize(2, 2));
+	QCOMPARE(screenshot.toImage().pixelColor(0, 0), QColor(Qt::red));
+	QCOMPARE(screenshot.toImage().pixelColor(1, 1), QColor(Qt::yellow));
 }
 
 TEST_MAIN(KdeWaylandImageGrabberTests)

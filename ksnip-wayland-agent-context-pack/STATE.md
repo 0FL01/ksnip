@@ -4,7 +4,7 @@ Status: active
 Source: `00_PRIMARY_GOAL.md`, `02_MVP_SCOPE.md`, `03_MINIMAL_DESIGN.md`,
 `05_ACCEPTANCE_CRITERIA.md`, and `tasks/T00_BASELINE.md` through
 `tasks/T06_OFFLINE_OCR.md`
-Last updated: 2026-07-28
+Last updated: 2026-08-23
 
 ## Objective
 
@@ -53,7 +53,14 @@ record the exact evidence and smallest unlock.
     live by the user as correct and substantially faster than Spectacle. A
     focused latest-wins lifecycle suite now covers startup bursts, overlapping
     background requests, selector replacement, Escape, and a fresh frozen crop;
-    installed-candidate burst verification remains pending.
+    installed-candidate burst verification remains pending. A later live
+    `2560x1600` at 175% regression showed that ScreenShot2 returned a
+    `1463x914`, DPR 1.0 frozen background while the primary screen DPR was 2.0;
+    the old crop doubled the logical selection and retained only its intersection
+    with the bottom edge. Mapping the selector canvas directly to the actual
+    background extents fixed the normal RectArea result live, and a focused
+    regression now covers the mismatched-DPR case. The user also confirmed that
+    OCR receives and recognizes the same corrected title/description region.
 - R3 — One resident GlobalShortcuts portal session activates the five required
   built-in capture actions exactly once and is recreated after settings change.
   - Primary evidence: focused state/mapping tests and target-session activation
@@ -216,14 +223,14 @@ record the exact evidence and smallest unlock.
 
 ## Current checkpoint
 
-- Phase: T06 — corrected installed offline acceptance
-- Closes: R6 and R9
-- Smallest next action: repeat one successful OCR request from the corrected
-  `/usr/bin/ksnip` while networking is disabled.
-- Expected evidence: recognized text reaches the clipboard and the runtime log
-  contains no resource, inference, subprocess, or download failure.
-- Stop or replan if: the corrected package attempts network access or fails only
-  when networking is unavailable.
+- Phase: fractional-scale RectArea installed-package acceptance
+- Closes: the fractional-scaling regression in R2 for both screenshot and OCR
+- Smallest next action: install the newly built local RPM and repeat one normal
+  and one OCR RectArea capture at 175% scale.
+- Expected evidence: both installed-package paths retain the verified local crop
+  and OCR clipboard behavior.
+- Stop or replan if: only the packaged binary reintroduces shifted coordinates or
+  fails to load the embedded OCR resources.
 
 ## Completed
 
@@ -239,6 +246,8 @@ record the exact evidence and smallest unlock.
 - [x] RectArea-to-clipboard vertical slice
 - [x] OCR shortcut and settings (automated and live activation evidence)
 - [x] OCR-enabled RPM and SRPM immutable source closure
+- [x] Fractional-scale normal RectArea crop (automated and live local evidence)
+- [x] Fractional-scale OCR crop live acceptance
 - [ ] Network-disabled installed OCR acceptance
 - [ ] Embedded local build and installed acceptance
 
@@ -365,6 +374,10 @@ explicit Configure Global Shortcuts action completed by the user.
 - 2026-07-27: The reduced static Paddle/ONNX closure is credible enough for
   production integration, so Paddle/ONNX remains the sole selected engine and
   the sequential Tesseract fallback is not activated.
+- 2026-08-23: KDE frozen RectArea must map the selector's local logical canvas
+  directly to the actual ScreenShot2 background dimensions. It must not apply
+  `primaryScreen()->devicePixelRatio()`: live evidence showed primary DPR 2.0,
+  widget DPR 1.75, and a logical `1463x914`, DPR 1.0 frozen background.
 
 ## Checkpoint history
 
@@ -564,6 +577,25 @@ explicit Configure Global Shortcuts action completed by the user.
   CER for linear, 5.46% for cubic, and 5.71% for Lanczos. Neither candidate is a
   stable accuracy win, so the production preprocessing remains unchanged and no
   terminal-specific heuristic was added.
+- 2026-08-23: Live fractional-scale diagnostics captured selector canvas and
+  frozen background at the same `1463x914` dimensions while the old primary-DPR
+  path transformed selection `(0,403 1043x226)` into out-of-bounds crop
+  `(0,806 2086x452)`. The extent-derived crop remained
+  `(0,403 1043x226)`. Switching only KDE's frozen crop to that mapping produced
+  the same requested YouTube title/description region as Spectacle. Temporary
+  diagnostic logging was removed; focused `KdeWaylandImageGrabberTests` and the
+  full offscreen Qt 6 suite pass 1/1 and 18/18 respectively.
+- 2026-08-23: The clean OCR-enabled local candidate recognized the same corrected
+  YouTube title/description region at 175% scale. The output retained expected
+  model-level homoglyph and punctuation errors, but no text from the previously
+  shifted bottom-edge crop appeared. Advanced to one final RPM build.
+- 2026-08-23: The fractional-scale fix built into local binary RPM
+  `ksnip-1.11.0-1.2871.gecd59bda.fc44.x86_64.rpm` with SHA-256
+  `3c34c22246bdbc46c5b4154dbf234fc9e04f129098d00efc58cf4f8ad6d7849d`.
+  RPM `%check` passed 18/18 tests. Payload, Requires, `ldd`, and `readelf` retain
+  the embedded-only OCR closure with no model file, OCR shared dependency, or
+  RPATH; the final ELF contains no temporary RectArea diagnostic string.
+  Advanced to installed-package live acceptance.
 
 ## Completion
 

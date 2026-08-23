@@ -30,6 +30,7 @@ public:
 	~WaylandSnippingArea() override = default;
     QRect selectedRectArea() const override;
 	QRect selectedLogicalRectArea() const;
+	QRect selectedRectAreaForBackground(const QSize &backgroundPixelSize) const;
 
 protected:
     void grabKeyboardFocus() override;

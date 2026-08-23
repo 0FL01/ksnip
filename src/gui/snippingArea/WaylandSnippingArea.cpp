@@ -33,6 +33,34 @@ QRect WaylandSnippingArea::selectedLogicalRectArea() const
 	return getGlobalCaptureArea();
 }
 
+QRect WaylandSnippingArea::selectedRectAreaForBackground(const QSize &backgroundPixelSize) const
+{
+	auto captureArea = getCaptureArea();
+	auto canvasSize = getGeometry().size();
+	if (!captureArea.isValid() || backgroundPixelSize.isEmpty() || canvasSize.isEmpty()) {
+		return {};
+	}
+
+	auto scaleX = backgroundPixelSize.width() / canvasSize.width();
+	auto scaleY = backgroundPixelSize.height() / canvasSize.height();
+	auto left = qBound(qint64 { 0 },
+					   qRound64(captureArea.x() * scaleX),
+					   static_cast<qint64>(backgroundPixelSize.width()));
+	auto right = qBound(qint64 { 0 },
+						qRound64((captureArea.x() + captureArea.width()) * scaleX),
+						static_cast<qint64>(backgroundPixelSize.width()));
+	auto top = qBound(qint64 { 0 },
+					  qRound64(captureArea.y() * scaleY),
+					  static_cast<qint64>(backgroundPixelSize.height()));
+	auto bottom = qBound(qint64 { 0 },
+						 qRound64((captureArea.y() + captureArea.height()) * scaleY),
+						 static_cast<qint64>(backgroundPixelSize.height()));
+	return { static_cast<int>(left),
+			 static_cast<int>(top),
+			 static_cast<int>(right - left),
+			 static_cast<int>(bottom - top) };
+}
+
 void WaylandSnippingArea::grabKeyboardFocus()
 {
 	QApplication::setActiveWindow(this);

@@ -19,6 +19,7 @@ private slots:
 	void GrabImage_Should_KeepLatestRectAreaRequest_When_ScreenShot2ProbeIsPending();
 	void GrabImage_Should_ReplaceActiveRectAreaCapture_When_RequestsOverlap();
 	void GrabImage_Should_StartFreshRectAreaCapture_When_PreviousSelectionWasCanceled();
+	void GrabImage_Should_CropLogicalBackground_When_PrimaryScreenDprDiffers();
 };
 
 #endif // KSNIP_KDEWAYLANDIMAGEGRABBERTESTS_H
