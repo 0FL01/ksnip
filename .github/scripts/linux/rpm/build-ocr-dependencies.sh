@@ -113,6 +113,7 @@ env -u CMAKE_PREFIX_PATH -u CONDA_PREFIX -u PYTHONPATH "$python_bin" "$ort_sourc
 	--parallel "$jobs" \
 	--cmake_generator Ninja \
 	--cmake_deps_mirror_dir "$build_root/mirror" \
+	--allow_running_as_root \
 	--compile_no_warning_as_error \
 	--disable_generation_ops \
 	--skip_pip_install \
