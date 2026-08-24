@@ -22,6 +22,9 @@ From the installed user-local build:
 - Active window returns the expected window.
 - Selected-window mode allows the user to click/select a window and returns it.
 - Rectangular area uses the KSnip overlay and returns the selected pixels.
+- If the frozen KDE background capture fails, the same request opens the live
+  KSnip overlay and completes through ScreenShot2 `CaptureArea` instead of
+  silently canceling.
 - Escape cancels area and interactive-window selection without an error dialog.
 - No KDE Screenshot Portal picker appears on the native ScreenShot2 path.
 - Cursor setting does not crash even if cursor inclusion is not fully polished.

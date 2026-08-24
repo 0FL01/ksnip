@@ -4,7 +4,7 @@ Status: active
 Source: `00_PRIMARY_GOAL.md`, `02_MVP_SCOPE.md`, `03_MINIMAL_DESIGN.md`,
 `05_ACCEPTANCE_CRITERIA.md`, and `tasks/T00_BASELINE.md` through
 `tasks/T06_OFFLINE_OCR.md`
-Last updated: 2026-08-23
+Last updated: 2026-08-24
 
 ## Objective
 
@@ -61,6 +61,12 @@ record the exact evidence and smallest unlock.
     background extents fixed the normal RectArea result live, and a focused
     regression now covers the mismatched-DPR case. The user also confirmed that
     OCR receives and recognizes the same corrected title/description region.
+    Runtime logs later exposed intermittent incomplete `CaptureWorkspace` pipe
+    payloads that canceled before the selector appeared. The backend now retains
+    frozen capture as the preferred path and deterministically falls back to the
+    same live selector followed by queued `CaptureArea`; focused failure,
+    completion, Escape, coordinate, and latest-wins tests pass. Installed live
+    fallback activation remains pending.
 - R3 — One resident GlobalShortcuts portal session activates the five required
   built-in capture actions exactly once and is recreated after settings change.
   - Primary evidence: focused state/mapping tests and target-session activation
@@ -223,14 +229,15 @@ record the exact evidence and smallest unlock.
 
 ## Current checkpoint
 
-- Phase: fractional-scale RectArea installed-package acceptance
-- Closes: the fractional-scaling regression in R2 for both screenshot and OCR
-- Smallest next action: install the newly built local RPM and repeat one normal
-  and one OCR RectArea capture at 175% scale.
-- Expected evidence: both installed-package paths retain the verified local crop
-  and OCR clipboard behavior.
-- Stop or replan if: only the packaged binary reintroduces shifted coordinates or
-  fails to load the embedded OCR resources.
+- Phase: RectArea incomplete-background fallback installed acceptance
+- Closes: the intermittent missing-selector regression in R2 for screenshot and
+  OCR requests
+- Smallest next action: install the local fallback RPM and repeat RectArea until
+  an incomplete frozen background warning is followed by a live selector and a
+  successful screenshot or OCR result.
+- Expected evidence: one request crosses the failure-only live `CaptureArea`
+  fallback without a duplicate selector, terminal signal, or resident restart.
+- Stop or replan if: fallback `CaptureArea` also receives an incomplete payload.
 
 ## Completed
 
@@ -248,6 +255,8 @@ record the exact evidence and smallest unlock.
 - [x] OCR-enabled RPM and SRPM immutable source closure
 - [x] Fractional-scale normal RectArea crop (automated and live local evidence)
 - [x] Fractional-scale OCR crop live acceptance
+- [x] Incomplete-background live-selector fallback (automated evidence)
+- [ ] Incomplete-background fallback installed live acceptance
 - [ ] Network-disabled installed OCR acceptance
 - [ ] Embedded local build and installed acceptance
 
@@ -378,8 +387,22 @@ explicit Configure Global Shortcuts action completed by the user.
   directly to the actual ScreenShot2 background dimensions. It must not apply
   `primaryScreen()->devicePixelRatio()`: live evidence showed primary DPR 2.0,
   widget DPR 1.75, and a logical `1463x914`, DPR 1.0 frozen background.
+- 2026-08-24: A failed KDE frozen background is recoverable rather than user
+  cancellation. Preserve the focus-safe frozen path normally; on technical
+  failure only, use the existing live selector and queued ScreenShot2
+  `CaptureArea`. Never accept a partial image, retry the frozen transfer, or
+  invoke the portal picker.
 
 ## Checkpoint history
+
+- 2026-08-24: Intermittent missing selectors were traced to repeated
+  `CaptureWorkspace` early EOFs while the resident process remained healthy.
+  Added a dedicated RectArea-client fallback state machine: background failure
+  opens the existing transparent selector, overlay completion queues logical
+  `CaptureArea`, and final terminal ownership remains serialized with latest
+  request replacement. Focused transport/backend tests, the full 18-test Qt 6
+  suite, OCR-enabled build, and local RPM `%check` pass. Installed fallback
+  activation is next.
 
 - 2026-07-26: RECON recorded exact git/session/API state. T00 remains in
   progress because required development packages are absent.

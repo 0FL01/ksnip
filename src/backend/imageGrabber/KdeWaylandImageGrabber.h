@@ -58,7 +58,9 @@ private:
 		Idle,
 		WaitingDelay,
 		CapturingBackground,
-		Selecting
+		Selecting,
+		SelectingFallback,
+		CapturingFallback
 	};
 
 	struct CaptureRequest
@@ -77,7 +79,7 @@ private:
 
 	WaylandSnippingArea *mSnippingArea;
 	KWinScreenShot2Client mScreenShot2Client;
-	KWinScreenShot2Client mRectAreaBackgroundClient;
+	KWinScreenShot2Client mRectAreaClient;
 	WaylandImageGrabber mPortalGrabber;
 	Backend mBackend;
 	QList<DeferredCapture> mDeferredCaptures;
@@ -87,6 +89,7 @@ private:
 	std::optional<DeferredCapture> mPendingRectAreaCapture;
 	QTimer mRectAreaDelayTimer;
 	std::function<void(bool)> mCaptureRectAreaBackground;
+	std::function<void(const QRect &, bool)> mCaptureRectArea;
 	bool mPortalBusy;
 
 	KdeWaylandImageGrabber(WaylandSnippingArea *snippingArea, const QSharedPointer<IConfig> &config);
@@ -98,9 +101,9 @@ private:
 	void startRectAreaCapture(const DeferredCapture &request);
 	void startRectAreaBackgroundCapture();
 	bool startPendingRectAreaCapture();
-	void rectAreaBackgroundReady(const QImage &image);
-	void rectAreaBackgroundCanceled();
-	void rectAreaBackgroundFailed(const QString &error);
+	void rectAreaCaptureReady(const QImage &image);
+	void rectAreaCaptureCanceled();
+	void rectAreaCaptureFailed(const QString &error);
 	void finishRectAreaSelection();
 	void dispatch(const CaptureRequest &request);
 	void dispatchScreenShot2(const CaptureRequest &request);

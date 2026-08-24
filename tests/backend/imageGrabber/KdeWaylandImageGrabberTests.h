@@ -20,6 +20,8 @@ private slots:
 	void GrabImage_Should_ReplaceActiveRectAreaCapture_When_RequestsOverlap();
 	void GrabImage_Should_StartFreshRectAreaCapture_When_PreviousSelectionWasCanceled();
 	void GrabImage_Should_CropLogicalBackground_When_PrimaryScreenDprDiffers();
+	void GrabImage_Should_ShowLiveSelectorWithoutCancel_When_RectAreaBackgroundCaptureFails();
+	void GrabImage_Should_QueueCaptureArea_When_LiveFallbackSelectionFinishes();
 };
 
 #endif // KSNIP_KDEWAYLANDIMAGEGRABBERTESTS_H

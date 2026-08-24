@@ -53,6 +53,11 @@ public:
 		return !timers.isEmpty() && timers.constFirst()->isActive();
 	}
 
+	bool hasTransparentBackground() const
+	{
+		return isBackgroundTransparent();
+	}
+
 protected:
 	void setFullScreen() override
 	{
@@ -142,25 +147,25 @@ void KdeWaylandImageGrabberTests::GrabImage_Should_ReplaceActiveRectAreaCapture_
 
 	grabber.grabImage(CaptureModes::RectArea, true, 0);
 	grabber.grabImage(CaptureModes::RectArea, false, 0);
-	grabber.mRectAreaBackgroundClient.imageReady(createBackground());
+	grabber.mRectAreaClient.imageReady(createBackground());
 	QTRY_COMPARE(backgroundRequests.size(), 2);
 	QVERIFY(!backgroundRequests.constLast());
 	QCOMPARE(snippingArea->showCount(), 0);
 
 	grabber.grabImage(CaptureModes::RectArea, true, 0);
-	grabber.mRectAreaBackgroundClient.canceled();
+	grabber.mRectAreaClient.canceled();
 	QTRY_COMPARE(backgroundRequests.size(), 3);
 	QVERIFY(backgroundRequests.constLast());
 	QCOMPARE(canceledCount, 0);
 
 	grabber.grabImage(CaptureModes::RectArea, false, 0);
 	QTest::ignoreMessage(QtWarningMsg, "KWin ScreenShot2 RectArea background capture failed: superseded");
-	grabber.mRectAreaBackgroundClient.failed(QLatin1String("superseded"));
+	grabber.mRectAreaClient.failed(QLatin1String("superseded"));
 	QTRY_COMPARE(backgroundRequests.size(), 4);
 	QVERIFY(!backgroundRequests.constLast());
 	QCOMPARE(canceledCount, 0);
 
-	grabber.mRectAreaBackgroundClient.imageReady(createBackground());
+	grabber.mRectAreaClient.imageReady(createBackground());
 	QCOMPARE(snippingArea->showCount(), 1);
 	QVERIFY(snippingArea->isVisible());
 	QVERIFY(snippingArea->isTimeoutActive());
@@ -171,7 +176,7 @@ void KdeWaylandImageGrabberTests::GrabImage_Should_ReplaceActiveRectAreaCapture_
 	QTRY_COMPARE(backgroundRequests.size(), 5);
 	QVERIFY(backgroundRequests.constLast());
 
-	grabber.mRectAreaBackgroundClient.imageReady(createBackground());
+	grabber.mRectAreaClient.imageReady(createBackground());
 	QCOMPARE(snippingArea->showCount(), 2);
 	QVERIFY(snippingArea->isVisible());
 	QTest::keyClick(snippingArea, Qt::Key_Escape);
@@ -209,7 +214,7 @@ void KdeWaylandImageGrabberTests::GrabImage_Should_StartFreshRectAreaCapture_Whe
 
 	grabber.grabImage(CaptureModes::RectArea, false, 0);
 	QTRY_COMPARE(backgroundRequests.size(), 1);
-	grabber.mRectAreaBackgroundClient.imageReady(createBackground());
+	grabber.mRectAreaClient.imageReady(createBackground());
 	QTest::keyClick(snippingArea, Qt::Key_Escape);
 	QCOMPARE(canceledCount, 1);
 	QCOMPARE(finishedCount, 0);
@@ -217,7 +222,7 @@ void KdeWaylandImageGrabberTests::GrabImage_Should_StartFreshRectAreaCapture_Whe
 	grabber.grabImage(CaptureModes::RectArea, true, 0);
 	QTRY_COMPARE(backgroundRequests.size(), 2);
 	QVERIFY(backgroundRequests.constLast());
-	grabber.mRectAreaBackgroundClient.imageReady(createBackground());
+	grabber.mRectAreaClient.imageReady(createBackground());
 	snippingArea->selectRectArea({ 1, 1 }, { 3, 3 });
 	QTest::keyClick(snippingArea, Qt::Key_Return);
 
@@ -246,13 +251,103 @@ void KdeWaylandImageGrabberTests::GrabImage_Should_CropLogicalBackground_When_Pr
 
 	grabber.grabImage(CaptureModes::RectArea, false, 0);
 	QTRY_COMPARE(backgroundRequestCount, 1);
-	grabber.mRectAreaBackgroundClient.imageReady(createBackground());
+	grabber.mRectAreaClient.imageReady(createBackground());
 	snippingArea->selectRectArea({ 1, 1 }, { 3, 3 });
 	QTest::keyClick(snippingArea, Qt::Key_Return);
 
 	QCOMPARE(screenshot.size(), QSize(2, 2));
 	QCOMPARE(screenshot.toImage().pixelColor(0, 0), QColor(Qt::red));
 	QCOMPARE(screenshot.toImage().pixelColor(1, 1), QColor(Qt::yellow));
+}
+
+void KdeWaylandImageGrabberTests::GrabImage_Should_ShowLiveSelectorWithoutCancel_When_RectAreaBackgroundCaptureFails()
+{
+	auto config = createConfig();
+	auto snippingArea = new TestWaylandSnippingArea(config);
+	int backgroundRequestCount = 0;
+	KdeWaylandImageGrabber grabber(snippingArea,
+									config,
+									KdeWaylandImageGrabber::Backend::ScreenShot2,
+									[&backgroundRequestCount](bool) { backgroundRequestCount++; });
+	int canceledCount = 0;
+	int captureAreaCount = 0;
+	connect(&grabber, &IImageGrabber::canceled, [&canceledCount] {
+		canceledCount++;
+	});
+	grabber.mCaptureRectArea = [&captureAreaCount](const QRect &, bool) {
+		captureAreaCount++;
+	};
+
+	grabber.grabImage(CaptureModes::RectArea, false, 0);
+	QTRY_COMPARE(backgroundRequestCount, 1);
+	QTest::ignoreMessage(QtWarningMsg,
+					 "KWin ScreenShot2 RectArea background capture failed; using live CaptureArea fallback: early EOF");
+	grabber.mRectAreaClient.failed(QLatin1String("early EOF"));
+
+	QCOMPARE(snippingArea->showCount(), 1);
+	QVERIFY(snippingArea->isVisible());
+	QVERIFY(snippingArea->hasTransparentBackground());
+	QCOMPARE(canceledCount, 0);
+	QCOMPARE(grabber.mRectAreaState, KdeWaylandImageGrabber::RectAreaState::SelectingFallback);
+
+	QTest::keyClick(snippingArea, Qt::Key_Escape);
+	QCOMPARE(canceledCount, 1);
+	QCOMPARE(captureAreaCount, 0);
+	QCOMPARE(grabber.mRectAreaState, KdeWaylandImageGrabber::RectAreaState::Idle);
+}
+
+void KdeWaylandImageGrabberTests::GrabImage_Should_QueueCaptureArea_When_LiveFallbackSelectionFinishes()
+{
+	auto config = createConfig();
+	auto snippingArea = new TestWaylandSnippingArea(config);
+	int backgroundRequestCount = 0;
+	KdeWaylandImageGrabber grabber(snippingArea,
+									config,
+									KdeWaylandImageGrabber::Backend::ScreenShot2,
+									[&backgroundRequestCount](bool) { backgroundRequestCount++; });
+	QList<QPair<QRect, bool>> captureAreaRequests;
+	bool selectorVisibleDuringCapture = true;
+	grabber.mCaptureRectArea = [&](const QRect &area, bool captureCursor) {
+		captureAreaRequests.append({ area, captureCursor });
+		selectorVisibleDuringCapture = snippingArea->isVisible();
+	};
+	int canceledCount = 0;
+	int finishedCount = 0;
+	QPixmap screenshot;
+	connect(&grabber, &IImageGrabber::canceled, [&canceledCount] {
+		canceledCount++;
+	});
+	connect(&grabber, &IImageGrabber::finished, [&finishedCount, &screenshot](const CaptureDto &capture) {
+		finishedCount++;
+		screenshot = capture.screenshot;
+	});
+
+	grabber.grabImage(CaptureModes::RectArea, true, 0);
+	QTRY_COMPARE(backgroundRequestCount, 1);
+	QTest::ignoreMessage(QtWarningMsg,
+					 "KWin ScreenShot2 RectArea background capture failed; using live CaptureArea fallback: early EOF");
+	grabber.mRectAreaClient.failed(QLatin1String("early EOF"));
+	snippingArea->selectRectArea({ 1, 1 }, { 3, 3 });
+	QTest::keyClick(snippingArea, Qt::Key_Return);
+
+	QCOMPARE(captureAreaRequests.size(), 0);
+	QTRY_COMPARE(captureAreaRequests.size(), 1);
+	QCOMPARE(captureAreaRequests.constFirst().first, QRect(1, 1, 2, 2));
+	QVERIFY(captureAreaRequests.constFirst().second);
+	QVERIFY(!selectorVisibleDuringCapture);
+	QCOMPARE(canceledCount, 0);
+	QCOMPARE(finishedCount, 0);
+	QCOMPARE(grabber.mRectAreaState, KdeWaylandImageGrabber::RectAreaState::CapturingFallback);
+
+	auto captureImage = createBackground().copy(1, 1, 2, 2);
+	grabber.mRectAreaClient.imageReady(captureImage);
+
+	QCOMPARE(canceledCount, 0);
+	QCOMPARE(finishedCount, 1);
+	QCOMPARE(screenshot.size(), QSize(2, 2));
+	QCOMPARE(screenshot.toImage().pixelColor(0, 0), QColor(Qt::red));
+	QCOMPARE(screenshot.toImage().pixelColor(1, 1), QColor(Qt::yellow));
+	QCOMPARE(grabber.mRectAreaState, KdeWaylandImageGrabber::RectAreaState::Idle);
 }
 
 TEST_MAIN(KdeWaylandImageGrabberTests)
