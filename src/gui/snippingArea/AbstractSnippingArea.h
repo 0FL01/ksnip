@@ -69,11 +69,13 @@ protected:
 	virtual void showSnippingArea();
 	QRect getCaptureArea() const;
 	QRect getGlobalCaptureArea() const;
+	void keepTranslucentBackground();
 
 private:
     QRect mCaptureArea;
     QSharedPointer<IConfig> mConfig;
 	QPixmap *mBackground;
+	bool mKeepTranslucentBackground;
 	SnippingAreaResizer *mResizer;
 	SnippingAreaSelector *mSelector;
 	SnippingAreaSelectorInfoText *mSelectorInfoText;

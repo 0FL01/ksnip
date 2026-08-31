@@ -21,6 +21,7 @@
 
 WaylandSnippingArea::WaylandSnippingArea(const QSharedPointer<IConfig> &config) : X11SnippingArea(config)
 {
+	keepTranslucentBackground();
 }
 
 QRect WaylandSnippingArea::selectedRectArea() const

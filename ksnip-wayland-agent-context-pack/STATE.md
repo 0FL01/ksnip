@@ -4,7 +4,7 @@ Status: active
 Source: `00_PRIMARY_GOAL.md`, `02_MVP_SCOPE.md`, `03_MINIMAL_DESIGN.md`,
 `05_ACCEPTANCE_CRITERIA.md`, and `tasks/T00_BASELINE.md` through
 `tasks/T06_OFFLINE_OCR.md`
-Last updated: 2026-08-24
+Last updated: 2026-08-31
 
 ## Objective
 
@@ -65,8 +65,12 @@ record the exact evidence and smallest unlock.
     payloads that canceled before the selector appeared. The backend now retains
     frozen capture as the preferred path and deterministically falls back to the
     same live selector followed by queued `CaptureArea`; focused failure,
-    completion, Escape, coordinate, and latest-wins tests pass. Installed live
-    fallback activation remains pending.
+    completion, Escape, coordinate, and latest-wins tests pass. Runtime evidence
+    after display reconfiguration then exposed a black/flickering fallback
+    selector when its top-level translucent attribute was changed after a prior
+    frozen selection. The Wayland selector now enables its alpha surface before
+    first show and retains it across frozen and live modes; automated and RPM
+    checks pass, while installed live acceptance remains pending.
 - R3 — One resident GlobalShortcuts portal session activates the five required
   built-in capture actions exactly once and is recreated after settings change.
   - Primary evidence: focused state/mapping tests and target-session activation
@@ -229,15 +233,16 @@ record the exact evidence and smallest unlock.
 
 ## Current checkpoint
 
-- Phase: RectArea incomplete-background fallback installed acceptance
-- Closes: the intermittent missing-selector regression in R2 for screenshot and
-  OCR requests
-- Smallest next action: install the local fallback RPM and repeat RectArea until
-  an incomplete frozen background warning is followed by a live selector and a
-  successful screenshot or OCR result.
-- Expected evidence: one request crosses the failure-only live `CaptureArea`
-  fallback without a duplicate selector, terminal signal, or resident restart.
-- Stop or replan if: fallback `CaptureArea` also receives an incomplete payload.
+- Phase: RectArea fallback alpha-surface installed acceptance
+- Closes: the intermittent black/flickering live selector after display-state
+  changes and a failed frozen background
+- Smallest next action: install the local RPM, restart the resident process, then
+  repeat the reported sleep/display-connect/refresh-rate transitions and RectArea
+  requests until an incomplete frozen background activates the live fallback.
+- Expected evidence: the fallback selector remains transparent and stable, then
+  completes or cancels exactly once without a black surface or flicker.
+- Stop or replan if: the black surface persists with the alpha attribute retained,
+  or fallback `CaptureArea` also receives an incomplete payload.
 
 ## Completed
 
@@ -257,6 +262,8 @@ record the exact evidence and smallest unlock.
 - [x] Fractional-scale OCR crop live acceptance
 - [x] Incomplete-background live-selector fallback (automated evidence)
 - [ ] Incomplete-background fallback installed live acceptance
+- [x] Wayland fallback alpha-surface lifecycle (automated evidence)
+- [ ] Wayland fallback alpha-surface installed live acceptance
 - [ ] Network-disabled installed OCR acceptance
 - [ ] Embedded local build and installed acceptance
 
@@ -392,8 +399,34 @@ explicit Configure Global Shortcuts action completed by the user.
   failure only, use the existing live selector and queued ScreenShot2
   `CaptureArea`. Never accept a partial image, retry the frozen transfer, or
   invoke the portal picker.
+- 2026-08-31: The Wayland selector must create its translucent top-level surface
+  before first show and retain it across frozen and live modes. The frozen pixmap
+  still paints opaque pixels; non-Wayland selectors retain their existing
+  attribute behavior. Do not toggle `WA_TranslucentBackground` on a reused shown
+  Wayland widget because Qt does not uniformly support that transition.
 
 ## Checkpoint history
+
+- 2026-08-31: Nine frozen-background early EOFs and one live-fallback early EOF
+  were observed after display-state changes while the resident process remained
+  healthy. The black/flickering failure-only selector was traced to changing
+  `WA_TranslucentBackground` after the reused top-level widget had already shown
+  a frozen background. `WaylandSnippingArea` now opts into a persistent alpha
+  surface at construction; a regression covers frozen selection, Escape, a
+  subsequent background early EOF, live fallback, and cancellation. Focused
+  `KdeWaylandImageGrabberTests` pass 1/1, the full offscreen Qt 6 suite passes
+  18/18, and RPM `%check` passes 18/18. The local binary RPM is
+  `/home/stfu/ai/trash-can/ksnip/build-translucency-rpm/RPMS/x86_64/ksnip-1.11.0-1.2875.gfae65bc1.fc44.x86_64.rpm` with SHA-256
+  `8fff0423427dd44441b5815023c3a070835256a3ab3b9d6b3a3abacdedd9e81f`;
+  the SRPM is
+  `/home/stfu/ai/trash-can/ksnip/build-translucency-rpm/SRPMS/ksnip-1.11.0-1.2875.gfae65bc1.fc44.src.rpm`
+  with SHA-256
+  `efaea62067f5b56dad70b76e83f9fb0b63b5bf0e681ca750ac86d5fff52b1457`.
+  The first local build stopped on absent `python3-flatbuffers`; the successful
+  retry used the already installed Miniconda Python module without changing the
+  host. The package intentionally carries pre-commit `fae65bc1` metadata but was
+  built and tested from the fixed tracked worktree. Installed live reproduction
+  remains next.
 
 - 2026-08-24: Intermittent missing selectors were traced to repeated
   `CaptureWorkspace` early EOFs while the resident process remained healthy.

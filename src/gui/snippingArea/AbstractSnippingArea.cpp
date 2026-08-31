@@ -22,6 +22,7 @@
 AbstractSnippingArea::AbstractSnippingArea(const QSharedPointer<IConfig> &config) :
 	mConfig(config),
 	mBackground(nullptr),
+	mKeepTranslucentBackground(false),
 	mResizer(new SnippingAreaResizer(mConfig, this)),
 	mSelector(new SnippingAreaSelector(mConfig, this)),
 	mSelectorInfoText(new SnippingAreaSelectorInfoText(this)),
@@ -67,9 +68,15 @@ void AbstractSnippingArea::showWithoutBackground()
 
 void AbstractSnippingArea::showWithBackground(const QPixmap &background)
 {
-    setAttribute(Qt::WA_TranslucentBackground, false);
+    setAttribute(Qt::WA_TranslucentBackground, mKeepTranslucentBackground);
     setBackgroundImage(background);
     showSnippingArea();
+}
+
+void AbstractSnippingArea::keepTranslucentBackground()
+{
+	mKeepTranslucentBackground = true;
+	setAttribute(Qt::WA_TranslucentBackground, true);
 }
 
 QRect AbstractSnippingArea::getCaptureArea() const
