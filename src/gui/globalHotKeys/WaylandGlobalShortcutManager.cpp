@@ -80,9 +80,6 @@ void WaylandGlobalShortcutManager::start(const QList<Shortcut> &shortcuts)
 {
 	stop();
 	mShortcuts = shortcuts;
-	for(const auto &shortcut : mShortcuts) {
-		mDesiredIds.insert(shortcut.id);
-	}
 
 	if(!mShortcuts.isEmpty()) {
 		probe(mGeneration);
@@ -96,7 +93,6 @@ void WaylandGlobalShortcutManager::stop()
 	mReconciled = false;
 	mConfigureRequested = false;
 	mBoundIds.clear();
-	mDesiredIds.clear();
 	mShortcuts.clear();
 
 	if(!mCurrentRequestPath.isEmpty()) {
@@ -256,17 +252,6 @@ void WaylandGlobalShortcutManager::createSession(quint64 generation)
 	beginRequest(RequestKind::Create, generation, QLatin1String("CreateSession"), { options }, token);
 }
 
-void WaylandGlobalShortcutManager::listShortcuts(quint64 generation)
-{
-	auto token = createToken(QLatin1String("list"));
-	QVariantMap options{ { HandleToken, token } };
-	beginRequest(RequestKind::List,
-				 generation,
-				 QLatin1String("ListShortcuts"),
-				 { QVariant::fromValue(QDBusObjectPath(mSessionPath)), options },
-				 token);
-}
-
 void WaylandGlobalShortcutManager::bindShortcuts(quint64 generation)
 {
 	auto token = createToken(QLatin1String("bind"));
@@ -402,9 +387,6 @@ void WaylandGlobalShortcutManager::portalResponse(uint response, const QVariantM
 	case RequestKind::Create:
 		processCreateResponse(results, requestValue.generation);
 		break;
-	case RequestKind::List:
-		processListResponse(results, requestValue.generation);
-		break;
 	case RequestKind::Bind:
 		processBindResponse(results, requestValue.generation);
 		break;
@@ -421,23 +403,8 @@ void WaylandGlobalShortcutManager::processCreateResponse(const QVariantMap &resu
 	}
 
 	mSessionPath = path;
-	listShortcuts(generation);
-}
-
-void WaylandGlobalShortcutManager::processListResponse(const QVariantMap &results, quint64 generation)
-{
-	bool ok = false;
-	auto existingIds = shortcutIds(results, &ok);
-	if(!ok) {
-		fail(tr("GlobalShortcuts portal returned an invalid shortcut list"));
-		return;
-	}
-
-	if(existingIds == mDesiredIds) {
-		setActive(existingIds);
-	} else {
-		bindShortcuts(generation);
-	}
+	// Listed shortcuts can belong to a previous session; every new session must bind.
+	bindShortcuts(generation);
 }
 
 void WaylandGlobalShortcutManager::processBindResponse(const QVariantMap &results, quint64 generation)

@@ -4,7 +4,7 @@ Status: active
 Source: `00_PRIMARY_GOAL.md`, `02_MVP_SCOPE.md`, `03_MINIMAL_DESIGN.md`,
 `05_ACCEPTANCE_CRITERIA.md`, and `tasks/T00_BASELINE.md` through
 `tasks/T06_OFFLINE_OCR.md`
-Last updated: 2026-09-14
+Last updated: 2026-10-07
 
 ## Objective
 
@@ -76,12 +76,15 @@ record the exact evidence and smallest unlock.
   - Primary evidence: focused state/mapping tests and target-session activation
     counts.
   - Status: in_progress
-  - Evidence: the serial Create/List/Bind/Close manager, stable five-ID mapping,
+  - Evidence: the serial Create/Bind/Close manager, stable five-ID mapping,
     safe preferred-trigger conversion, and enabled/dirty recreation lifecycle
     are implemented. Runtime tracing proved KGlobalAccel -> portal Activated ->
     KSnip -> ScreenShot2. The candidate registers all five IDs and exposes
     portal v2 `ConfigureShortcuts`; after assignment in KDE, the user's three
-    required bindings work globally and persist across a clean KSnip restart.
+    required bindings previously worked globally across a clean KSnip restart.
+    KDE 6.7.4+ exposed the old List-equality path skipping Bind on new sessions.
+    Direct full-list binding now passes the private-bus regression; physical
+    activation after restart/reboot of the new exact RPM remains pending.
 - R4 — The final candidate installs safely below `~/.local` with stable desktop
   identity, absolute `Exec`, restricted-interface metadata, and reversible
   uninstall behavior.
@@ -137,17 +140,20 @@ record the exact evidence and smallest unlock.
     coverage.
 - R8 — OCR is activated as one built-in shortcut in the existing resident
   GlobalShortcuts session without changing the five capture mappings.
-  - Acceptance: the sixth stable ID activates OCR exactly once and settings
-    recreation preserves the existing capture actions.
+  - Acceptance: the sixth stable ID activates OCR exactly once after start,
+    clean restart and reboot, and settings recreation preserves capture actions.
   - Primary evidence: focused mapping/session tests and target activation.
-  - Status: verified
+  - Status: in_progress
   - Evidence: the portal manager now emits stable IDs; the existing five IDs
     retain their exact capture mappings and `ocr.rect_area` emits the dedicated
     OCR workflow signal. One persisted `Alt+Shift+O` preference and settings row
     are included only in built-in OCR builds. Focused mapping, portal, and
     workflow tests pass; the user assigned and successfully activated the OCR
     shortcut in the target session and confirmed it still works after installing
-    and restarting the exact RPM candidate.
+    and restarting an earlier exact RPM candidate. The subsequent ignored
+    Meta+Shift+D report invalidates current restart/reboot acceptance. New
+    private-bus tests prove fresh-session binding and OCR-ID delivery, not a
+    physical keypress or real inference on the installed candidate.
 - R9 — The Qt 6 application and local RPM build include the one selected OCR
   engine and embedded model data and pass affected regression checks.
   - Acceptance: local build/tests pass; installed OCR runs offline with no
@@ -233,20 +239,22 @@ record the exact evidence and smallest unlock.
 
 ## Current checkpoint
 
-- Phase: combined embedded-OCR and ScreenShot2 socketpair RPM built and verified;
-  installed/live acceptance pending.
-- Candidate: `/home/stfu/ai/trash-can/ksnip/build-ocr-socket-rpm/RPMS/x86_64/ksnip-1.11.0-1.2876.gccf15f2a.dirty.fc44.x86_64.rpm`.
-- Smallest next action: the user quits the existing EOF diagnostic through its
-  tray, runs its checksum-aware `uninstall-user.sh` to remove the user desktop
-  override, installs the candidate, then repeats ordinary native captures and
-  RectArea OCR with networking disabled.
-- Expected evidence: native FullScreen/CurrentScreen/ActiveWindow and repeated
-  RectArea remain responsive before and after a natural resume/display transition;
-  any transport failure includes the new byte/timing diagnostics; RU/EN OCR writes
-  non-empty text offline and no missing-resource error appears.
-- This local RPM is unsigned and intentionally identifies its pre-commit base plus
-  dirty tracked source. No package installation, process stop, or live launch was
-  performed while producing it.
+- Phase: direct fresh-session GlobalShortcuts binding implemented; automated
+  regression green; source commits/push and full OCR RPM rebuild authorized.
+- Smallest next action: seal committed source, build the full OCR-enabled RPM/SRPM
+  under `build-ocr-shortcuts-rpm`, and inspect the exact package and source closure.
+- Preserve the committed ScreenShot2 socketpair mitigation and diagnostics. No
+  capture-only diagnostic is to be deployed under the main desktop identity.
+- Installed baseline from preflight: `1:ksnip-1.11.0-1.2876.gccf15f2a.dirty.fc44.x86_64`;
+  no main user-local desktop override was present. The old artifact directory is
+  absent; its dated build evidence below remains historical.
+- Expected live evidence after user installation: saved Meta+Shift+D produces
+  current-session Activated, one selector, and expected real fixture text replacing
+  a clipboard sentinel after start, one clean restart and one actual reboot,
+  without reassignment, manual backend Bind or clearing configuration.
+- This implementation does not establish physical-key delivery, real OCR inference,
+  or sleep/display-state transport acceptance. No host installation, resident
+  termination, UI opening or user-bus portal mutation was performed.
 
 ## Completed
 
@@ -254,13 +262,14 @@ record the exact evidence and smallest unlock.
 - [x] D-Bus probes
 - [x] ScreenShot2 core (automated evidence; live verification pending)
 - [x] Rectangular area (automated and live evidence)
-- [x] Wayland global shortcuts (automated and three user-required live bindings)
+- [x] Wayland global shortcuts (automated; historical target-session evidence)
+- [ ] Saved capture/OCR activation after restart and reboot of the new exact RPM
 - [x] User-local installer (automated and live launch/restart evidence)
 - [ ] Acceptance tests
 - [x] `dist/` delivery (live report pending)
 - [x] Offline RU/EN OCR engine feasibility gate
 - [x] RectArea-to-clipboard vertical slice
-- [x] OCR shortcut and settings (automated and live activation evidence)
+- [x] OCR shortcut and settings (automated; historical live activation evidence)
 - [x] OCR-enabled RPM and SRPM immutable source closure
 - [x] Fractional-scale normal RectArea crop (automated and live local evidence)
 - [x] Fractional-scale OCR crop live acceptance
@@ -360,11 +369,16 @@ PASS: exact candidate installed with absolute Exec and matching CLI symlink.
 
 ## Blockers
 
-R3 requires user authorization: the live KSnip portal session and downstream
-activation path work, but KDE persisted the three existing actions with active
-binding `none` and only default suggestions. The standard portal cannot assign
-physical keys silently. The newly installed candidate must be restarted and its
-explicit Configure Global Shortcuts action completed by the user.
+No implementation blocker is known. The earlier `none`-binding observation is
+historical, not the current diagnosis: saved OCR metadata does not prove delivery.
+Target-session acceptance requires the user to install the exact new RPM, confirm
+physical keypresses, and perform a real reboot; no automated key injection or
+manual backend binding substitutes for that evidence.
+
+The only missing RPM BuildRequires in preflight is `python3-flatbuffers`.
+The declared requirement stays intact. A documented local `--nodeps` exception is
+permitted only after checking every other final-spec requirement and using the
+existing Miniconda Python for ORT generation, not the compiler/Qt toolchain.
 
 ## Material decisions
 
@@ -410,6 +424,43 @@ explicit Configure Global Shortcuts action completed by the user.
   Wayland widget because Qt does not uniformly support that transition.
 
 ## Checkpoint history
+
+- 2026-10-07: Implemented the audited minimal shortcut lifecycle correction:
+  every successful new CreateSession dispatches one BindShortcuts containing
+  the complete actual desired list. Removed List flow and its unused desired-ID
+  set; retained Bind result handling, subset/typed-empty semantics, configuration
+  queue, generation guards, cancellation and session/request closing.
+
+  The isolated public-frontend fake uses real QtDBus on `dbus-run-session`, six
+  explicit fixture IDs including OCR, saved metadata, controllable responses,
+  bound-gated simulated presses and independent raw signals for filtering.
+  The fake refuses registration without the CTest private-bus marker/address;
+  only this Linux test is wrapped. `dbus-daemon` is a build/test dependency only.
+  Manager tests do not exercise physical key delivery or the production recognizer.
+
+  Exact commands and evidence:
+  ```text
+  env -u CONDA_PREFIX -u CONDA_DEFAULT_ENV -u CMAKE_PREFIX_PATH -u LD_LIBRARY_PATH PATH=/usr/bin:/bin cmake -S . -B build-tests -G Ninja -DCMAKE_BUILD_TYPE=Debug -DBUILD_WITH_QT6=ON -DBUILD_TESTS=ON -DENABLE_BUILTIN_OCR=OFF -DUSE_SUBMODULE_KCOLORPICKER=ON -DUSE_SUBMODULE_KIMAGEANNOTATOR=ON -DGTest_DIR=/usr/lib64/cmake/GTest
+  PASS. Test-only OCR=OFF build is not installed or delivered.
+  cmake --build build-tests --target WaylandGlobalShortcutManagerTests --parallel 2
+  PASS after resuming the initial tool-timeout build.
+  ctest --test-dir build-tests -R '^WaylandGlobalShortcutManagerTests$' --output-on-failure
+  RED before production change: 5 QtTest checks passed, 13 failed at missing Bind;
+  no fake registration or wire error. Saved six IDs must not activate a new session.
+  env -u CONDA_PREFIX -u CONDA_DEFAULT_ENV -u CMAKE_PREFIX_PATH -u LD_LIBRARY_PATH PATH=/usr/bin:/bin cmake --build build-tests --parallel 2
+  PASS (existing Qt deprecation warnings only).
+  QT_QPA_PLATFORM=offscreen /usr/bin/ctest --test-dir build-tests --output-on-failure -j2
+  GREEN after production change: 18/18 CTest executables, 0 failures, 1.96 s.
+  QT_QPA_PLATFORM=offscreen /usr/bin/ctest --test-dir build-tests -R '^(WaylandGlobalShortcutManagerTests|KWinScreenShot2ClientTests|KdeWaylandImageGrabberTests|GlobalHotKeyHandlerTests|OcrCaptureWorkflowTests)$' --output-on-failure
+  PASS: 5/5 after adding one-Bind fake assertions and teardown draining, 3.06 s.
+  /usr/bin/ctest --test-dir build-tests -R '^WaylandGlobalShortcutManagerTests$' --repeat until-fail:10 --output-on-failure
+  PASS: all ten isolated repetitions, 23.08 s.
+  git diff --check
+  PASS. Independent read-only implementation review found no concrete blocker.
+  ```
+  Full OCR RPM build and exact-package inspection follow source commits. Real
+  physical activation after reboot, installed inference and transport stress
+  remain separately pending; neither saved IDs nor green fake tests close them.
 
 - 2026-09-14: Built one Fedora 44 x86_64 RPM/SRPM combining the full static OCR
   closure with the current uncommitted ScreenShot2 socketpair mitigation and

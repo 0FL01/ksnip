@@ -50,6 +50,7 @@ BuildRequires:  cmake(Qt6LinguistTools)
 BuildRequires:  cmake(Qt6Test)
 BuildRequires:  cmake(GTest)
 BuildRequires:  gmock-devel
+BuildRequires:  dbus-daemon
 BuildRequires:  pkgconfig(x11)
 BuildRequires:  pkgconfig(xcb-xfixes)
 BuildRequires:  desktop-file-utils

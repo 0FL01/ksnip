@@ -77,7 +77,6 @@ private:
 	enum class RequestKind
 	{
 		Create,
-		List,
 		Bind
 	};
 
@@ -89,7 +88,6 @@ private:
 	};
 
 	QList<Shortcut> mShortcuts;
-	QSet<QString> mDesiredIds;
 	QSet<QString> mBoundIds;
 	QHash<QString, Request> mRequests;
 	QString mCurrentRequestPath;
@@ -105,13 +103,11 @@ private:
 	QString predictedRequestPath(const QString &token) const;
 	void probe(quint64 generation);
 	void createSession(quint64 generation);
-	void listShortcuts(quint64 generation);
 	void bindShortcuts(quint64 generation);
 	void configureShortcutsIfReady();
 	void beginRequest(RequestKind kind, quint64 generation, const QString &method, const QVariantList &arguments, const QString &token);
 	void processRequestReply(const QString &expectedPath, quint64 requestId, QDBusPendingCallWatcher *watcher);
 	void processCreateResponse(const QVariantMap &results, quint64 generation);
-	void processListResponse(const QVariantMap &results, quint64 generation);
 	void processBindResponse(const QVariantMap &results, quint64 generation);
 	void setActive(const QSet<QString> &boundIds);
 	void fail(const QString &error);

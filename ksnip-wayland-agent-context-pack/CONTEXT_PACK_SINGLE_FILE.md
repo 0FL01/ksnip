@@ -349,8 +349,11 @@ Session lifecycle:
    - `capture.current_screen`
    - `capture.active_window`
    - `capture.select_window`
-4. List existing shortcuts for the application.
-5. Bind missing shortcuts once, with descriptions and preferred triggers.
+4. Bind the complete desired shortcut list once for every new session, with
+   descriptions and optional preferred triggers. Saved IDs returned by
+   `ListShortcuts` before binding describe a previous session, not active bindings.
+5. Accept only the IDs returned by a successful Bind response as bound. A valid
+   subset or empty list is allowed and still permits explicit portal-v2 configuration.
 6. Map `Activated` signals directly to existing
    `captureTriggered(CaptureModes)` behavior.
 7. On hotkey settings changes, close and recreate the portal session rather
@@ -504,7 +507,9 @@ With another application focused:
 - FullScreen shortcut captures.
 - ActiveWindow shortcut captures.
 - SelectedWindow shortcut starts interactive window selection.
-- Restarting KSnip does not create duplicate activations.
+- Saved assignments still activate their actions after a clean KSnip restart and
+  an actual reboot, with another application focused, without reassignment or
+  manual backend binding. Each physical press produces one matching activation.
 - Idle CPU usage does not show a shortcut polling loop.
 - Changing shortcut settings either rebinds through a recreated session or
   produces a clear supported limitation; it must not silently leave stale

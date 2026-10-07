@@ -41,7 +41,9 @@ With another application focused:
 - FullScreen shortcut captures.
 - ActiveWindow shortcut captures.
 - SelectedWindow shortcut starts interactive window selection.
-- Restarting KSnip does not create duplicate activations.
+- Saved assignments still activate their actions after a clean KSnip restart and
+  an actual reboot, with another application focused, without reassignment or
+  manual backend binding. Each physical press produces one matching activation.
 - Idle CPU usage does not show a shortcut polling loop.
 - Changing shortcut settings either rebinds through a recreated session or
   produces a clear supported limitation; it must not silently leave stale
@@ -91,6 +93,10 @@ For the separately approved T06 objective:
 
 - The configured OCR shortcut opens the existing RectArea selection flow and
   produces at most one plain-text clipboard write.
+- The saved OCR assignment works after start, one clean restart, and one actual
+  reboot. Correlate a confirmed physical keypress with `Activated` for the current
+  session, one selector, and expected fixture text replacing a known clipboard
+  sentinel; saved IDs or key metadata alone are not acceptance evidence.
 - OCR success bypasses the editor, image clipboard, and auto-save paths.
 - Escape, capture failure, recognition failure, and empty output leave the
   existing clipboard unchanged.
