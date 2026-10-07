@@ -239,10 +239,11 @@ record the exact evidence and smallest unlock.
 
 ## Current checkpoint
 
-- Phase: direct fresh-session GlobalShortcuts binding implemented; automated
-  regression green; source commits/push and full OCR RPM rebuild authorized.
-- Smallest next action: seal committed source, build the full OCR-enabled RPM/SRPM
-  under `build-ocr-shortcuts-rpm`, and inspect the exact package and source closure.
+- Phase: shortcut and transport commits pushed; first full OCR RPM passes binary
+  gates, but source-closure inspection found an unlisted ORT JSON archive.
+- Smallest next action: commit the pinned JSON lock/spec correction, reseal source,
+  and rebuild in a separate topdir. Require all 12 ORT population receipts to use
+  local SRPM archives; the first candidate is not the final delivery.
 - Preserve the committed ScreenShot2 socketpair mitigation and diagnostics. No
   capture-only diagnostic is to be deployed under the main desktop identity.
 - Installed baseline from preflight: `1:ksnip-1.11.0-1.2876.gccf15f2a.dirty.fc44.x86_64`;
@@ -270,7 +271,7 @@ record the exact evidence and smallest unlock.
 - [x] Offline RU/EN OCR engine feasibility gate
 - [x] RectArea-to-clipboard vertical slice
 - [x] OCR shortcut and settings (automated; historical live activation evidence)
-- [x] OCR-enabled RPM and SRPM immutable source closure
+- [ ] OCR-enabled RPM and SRPM complete source closure (JSON omission found)
 - [x] Fractional-scale normal RectArea crop (automated and live local evidence)
 - [x] Fractional-scale OCR crop live acceptance
 - [x] Incomplete-background live-selector fallback (automated evidence)
@@ -424,6 +425,31 @@ existing Miniconda Python for ORT generation, not the compiler/Qt toolchain.
   Wayland widget because Qt does not uniformly support that transition.
 
 ## Checkpoint history
+
+- 2026-10-07: Committed and pushed `fac6098d` (transport) and `e93f80e5`
+  (fresh-session shortcut Bind) to `origin/master`. Full OCR Qt6 RPM `%check`
+  passes 18/18, with 18 passing manager QtTest entries and no failures/skips;
+  package resources, desktop identity, dependencies and socketpair gates pass.
+  Source0 contains the clean source commit `e93f80e5551911ecf2dab6974c8f4a08053de17b`
+  (count 2878) and both pinned submodules; the declared 15 SRPM files byte-match.
+
+  A stronger source audit invalidated complete offline source closure:
+  ```text
+  /usr/bin/python3 -I -B build-ocr-shortcuts-rpm/verify-local-mirror.py
+  FAIL, exit 1: 11/12 ORT receipts use locked local archives; nlohmann_json
+  uses https://github.com/nlohmann/json/archive/refs/tags/v3.11.3.zip,
+  absent from the old lockfile and SRPM.
+  Retained archive bytes: 8489998
+  SHA256: 04022b05d806eb5ff73023c280b68697d12b93e1b7267a0b22a1a39ec7578069
+  SHA1: 5e88795165cc8590138d1f47ce94ee567b85b4d6
+  ```
+  The SHA1 exactly matches pinned ORT 1.27.0 `cmake/deps.txt:32`. Added the
+  SHA256-locked archive and Source14; the existing mirror builder already consumes
+  every lock entry. JSON's MIT attribution is already in the installed ORT
+  third-party notices. No engine/model/version change or mirror framework is needed.
+  Complete rebuilt SRPM must now contain 16 inputs: spec plus Source0 through
+  Source14. Preserve the first candidate/logs as failed-closure evidence, not final
+  delivery. The current resident process and installed RPM remain unchanged.
 
 - 2026-10-07: Implemented the audited minimal shortcut lifecycle correction:
   every successful new CreateSession dispatches one BindShortcuts containing

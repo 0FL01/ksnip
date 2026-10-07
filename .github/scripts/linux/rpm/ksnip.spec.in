@@ -25,6 +25,7 @@ Source10:       https://github.com/protocolbuffers/protobuf/archive/refs/tags/v2
 Source11:       https://github.com/pytorch/cpuinfo/archive/403d652dca4c1046e8145950b1c0997a9f748b57.zip
 Source12:       https://github.com/google/re2/archive/refs/tags/2024-07-02.zip
 Source13:       https://github.com/dcleblanc/SafeInt/archive/refs/tags/3.0.28.zip
+Source14:       https://github.com/nlohmann/json/archive/refs/tags/v3.11.3.zip
 
 BuildRequires:  cmake
 BuildRequires:  gcc

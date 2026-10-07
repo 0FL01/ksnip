@@ -12,3 +12,4 @@ b8b56570d94ecce49fee94e6380db456bb42035722b967015c9dd6459359433e  v1.21.0.zip  h
 357d9824b8d3f4c05f0b2287e45b4e0d982422c27b67b968eb23a643dc52b5e2  403d652dca4c1046e8145950b1c0997a9f748b57.zip  https://github.com/pytorch/cpuinfo/archive/403d652dca4c1046e8145950b1c0997a9f748b57.zip
 a835fe55fbdcd8e80f38584ab22d0840662c67f2feb36bd679402da9641dc71e  2024-07-02.zip  https://github.com/google/re2/archive/refs/tags/2024-07-02.zip
 3ffbd9a2fdff45da77da3e7269e9aa512ea43bed5c38ce8fd8f3d1068a032c3f  3.0.28.zip  https://github.com/dcleblanc/SafeInt/archive/refs/tags/3.0.28.zip
+04022b05d806eb5ff73023c280b68697d12b93e1b7267a0b22a1a39ec7578069  v3.11.3.zip  https://github.com/nlohmann/json/archive/refs/tags/v3.11.3.zip
