@@ -4,7 +4,7 @@ Status: active
 Source: `00_PRIMARY_GOAL.md`, `02_MVP_SCOPE.md`, `03_MINIMAL_DESIGN.md`,
 `05_ACCEPTANCE_CRITERIA.md`, and `tasks/T00_BASELINE.md` through
 `tasks/T06_OFFLINE_OCR.md`
-Last updated: 2026-08-31
+Last updated: 2026-09-14
 
 ## Objective
 
@@ -233,16 +233,20 @@ record the exact evidence and smallest unlock.
 
 ## Current checkpoint
 
-- Phase: RectArea fallback alpha-surface installed acceptance
-- Closes: the intermittent black/flickering live selector after display-state
-  changes and a failed frozen background
-- Smallest next action: install the local RPM, restart the resident process, then
-  repeat the reported sleep/display-connect/refresh-rate transitions and RectArea
-  requests until an incomplete frozen background activates the live fallback.
-- Expected evidence: the fallback selector remains transparent and stable, then
-  completes or cancels exactly once without a black surface or flicker.
-- Stop or replan if: the black surface persists with the alpha attribute retained,
-  or fallback `CaptureArea` also receives an incomplete payload.
+- Phase: combined embedded-OCR and ScreenShot2 socketpair RPM built and verified;
+  installed/live acceptance pending.
+- Candidate: `/home/stfu/ai/trash-can/ksnip/build-ocr-socket-rpm/RPMS/x86_64/ksnip-1.11.0-1.2876.gccf15f2a.dirty.fc44.x86_64.rpm`.
+- Smallest next action: the user quits the existing EOF diagnostic through its
+  tray, runs its checksum-aware `uninstall-user.sh` to remove the user desktop
+  override, installs the candidate, then repeats ordinary native captures and
+  RectArea OCR with networking disabled.
+- Expected evidence: native FullScreen/CurrentScreen/ActiveWindow and repeated
+  RectArea remain responsive before and after a natural resume/display transition;
+  any transport failure includes the new byte/timing diagnostics; RU/EN OCR writes
+  non-empty text offline and no missing-resource error appears.
+- This local RPM is unsigned and intentionally identifies its pre-commit base plus
+  dirty tracked source. No package installation, process stop, or live launch was
+  performed while producing it.
 
 ## Completed
 
@@ -406,6 +410,264 @@ explicit Configure Global Shortcuts action completed by the user.
   Wayland widget because Qt does not uniformly support that transition.
 
 ## Checkpoint history
+
+- 2026-09-14: Built one Fedora 44 x86_64 RPM/SRPM combining the full static OCR
+  closure with the current uncommitted ScreenShot2 socketpair mitigation and
+  diagnostics. The new ignored topdir is `build-ocr-socket-rpm`; no prior artifact
+  was overwritten. Source0 was sealed before this checkpoint entry from tracked
+  `HEAD` `ccf15f2abe48dc2fd5a36c5c7eda7b991ade1f7b` (count 2876), the exact initial
+  five-file working-tree diff, and both pinned submodule archives. Builds, caches,
+  other untracked files, and Git metadata are excluded. The package release and
+  CLI build string carry `.dirty`/`dirty-tracked`, and the RPM description records
+  the pre-commit base and included diff.
+
+  Source closure:
+  ```text
+  Source0 SHA-256:
+  e0c1edda1d88193dd9a95dae43b4543b5e9beba52040181e08759d6af7384c3c
+  Initial tracked working-tree patch SHA-256:
+  1eac26f327139416db3b4a97ef8185bbeda75eabcc0cc45b667a98abd8bde846
+  Spec SHA-256:
+  2da5fd701cbfa320b396f699806adfc7478a54a6a8b6044f832249187831d675
+  bash .../fetch-ocr-sources.sh .../SOURCES --offline
+  PASS: all 13 immutable archive hashes match ocr-sources.lock; no network used.
+  SRPM extraction and cmp against the topdir:
+  PASS: spec plus Source0 through Source13 are byte-identical (15 files total).
+  Source0 contains both submodule CMakeLists and the socketpair source/tests.
+  ```
+
+  Exact successful build environment and command, with the same command first
+  interrupted only by tool limits at 20 and 40 minutes and resumed through the
+  private ccache:
+  ```text
+  env -u CONDA_PREFIX -u CMAKE_PREFIX_PATH -u PYTHONPATH -u PYTHONHOME \
+    PATH=/usr/lib64/ccache:/usr/bin:/bin \
+    CCACHE_DIR=/home/stfu/ai/trash-can/ksnip/build-ocr-socket-rpm/ccache \
+    KSNIP_OCR_PYTHON=/home/stfu/miniconda3/bin/python \
+    SOURCE_DATE_EPOCH=1788179999 \
+    rpmbuild -ba --nodeps \
+      --define "_topdir /home/stfu/ai/trash-can/ksnip/build-ocr-socket-rpm" \
+      --define "_smp_build_ncpus 2" \
+      build-ocr-socket-rpm/SPECS/ksnip.spec
+  PASS. Logs: rpmbuild-attempt1-timeout.log, rpmbuild-attempt2-timeout.log,
+  and rpmbuild.log. The final ccache total was 3925/7617 cacheable hits.
+  ```
+  `--nodeps` was required only because declared `python3-flatbuffers` is not
+  installed. As in the prior successful RPM, existing Miniconda Python 3.13.5
+  with flatbuffers 25.12.19 was selected only for ORT's generated flatbuffers;
+  GCC 16.1.1, CMake 4.3.0, Qt 6.11.1, GTest/GMock, and every compiler/linker path
+  remained the Fedora system toolchain. The log shows `ENABLE_BUILTIN_OCR=ON`,
+  Qt 6, static ORT/OpenCV inputs, and `-fno-lto` only on the RCC resource object.
+
+  Build and package gates:
+  ```text
+  RPM %check: PASS, 18/18, 0 failures, 1.11 s.
+  desktop-file-validate: PASS.
+  appstreamcli validate --no-net: PASS with three pre-existing informational notes.
+  Focused KWinScreenShot2Client, KdeWaylandImageGrabber, GlobalHotKeyHandler,
+  WaylandGlobalShortcutManager, and OcrCaptureWorkflow rerun: PASS, 5/5.
+  rpm -K / rpm --checksig -v: header and payload SHA-256 digests OK for both RPMs.
+  Binary RPM SHA-256:
+  6faebab50931d3f473834b934fd217552ac3d1bcbda335ebb0dfa0bb60fc62f5
+  SRPM SHA-256:
+  46f83fb24255e472d61eb6c4e7aaf53119324ebec35d3106bb86e1e9eace9f6e
+  Extracted binary SHA-256:
+  061928bf700e73eac4fbe367d33928d235befa23bc0de88c84916ea1be3423b6
+  NEVRA: 1:ksnip-1.11.0-1.2876.gccf15f2a.dirty.fc44.x86_64
+  RPM bytes: 18066566; installed size: 36582872; SRPM bytes: 425171024.
+  QT_QPA_PLATFORM=offscreen extracted/usr/bin/ksnip --version
+  Version: 1.11.0-2876.gccf15f2a.dirty
+  Build: ccf15f2abe48dc2fd5a36c5c7eda7b991ade1f7b-dirty-tracked
+  ```
+
+  Payload and ELF gates:
+  ```text
+  Desktop Exec=/usr/bin/ksnip %F and restricted interfaces include
+  org.kde.KWin.ScreenShot2; extracted desktop validation passes.
+  Strings expose Recognize Text in Area, Recognize text in area, ocr.rect_area,
+  all three :/ocr resource paths, and the missing-resource diagnostic.
+  Exact embedded occurrences: detector 4766440 bytes (1), recognizer 7882715
+  bytes (1), dictionary 1663 bytes (1); each SHA-256 matches the pinned value.
+  Payload contains OCR attribution/licenses but no external ONNX model or dictionary.
+  RPM Requires, ELF DT_NEEDED, and ldd contain no ORT/OpenCV/Paddle/Tesseract/Qt5
+  dependency; ldd has no missing library; readelf has no RPATH or RUNPATH.
+  UTF-16 strings expose expected/received byte and worker/reply timing diagnostics;
+  the ELF imports socketpair@GLIBC_2.2.5. Source0 contains the exact
+  socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, ...) implementation and its
+  deterministic buffered-writer test.
+  ```
+
+  No install, uninstall, resident-process termination, desktop-cache mutation,
+  commit, push, or system-file edit was performed. Remaining live acceptance is
+  installation/restart of this exact RPM, network-disabled OCR, ordinary native
+  captures, repeated RectArea fallback, natural resume/display-state behavior,
+  latency, cancellation, and descriptor-leak observation.
+  At final verification, the prior `/home/stfu/.local/libexec/ksnip-eof-diagnostic/ksnip`
+  remained running and its user desktop override remained active; the system RPM
+  was still `1.11.0-1.2875.gfae65bc1.fc44.x86_64`. The diagnostic uninstall state
+  has no backup, so its uninstaller will remove rather than replace that override.
+
+- 2026-09-10: Implemented the minimal client mitigation for demonstrated buffered
+  nonblocking QFile producer truncation: `socketpair(AF_UNIX, SOCK_STREAM |
+  SOCK_CLOEXEC, 0, ...)` replaces `pipe2` at the existing backend creation point.
+  Original uncommitted diagnostics are preserved. QDBus descriptor duplication,
+  local endpoint close, shared reader ownership until reply, worker ownership
+  after release, async cancellation/destruction handling and all validation remain.
+  This narrowly supersedes the pipe creation instruction in `03_MINIMAL_DESIGN.md`.
+
+  Prior standalone evidence (`build-eof-diagnostic/writer-probe-report.md`):
+  original buffered KWin writer failed 96/120 exact transfers on an 8192-byte
+  pipe, versus 0/120 on default Unix stream sockets; completed buffered portions
+  of extended runs had 621/800 pipe failures and 0/1200 socket failures. Some
+  whole matrices timed out later during unbuffered controls; these are not
+  complete extended matrix runs. The producer can report all bytes accepted,
+  then lose its <=16 KiB QFile tail when destructor flush hits EAGAIN. Reading
+  sooner cannot recover discarded bytes. Socket readiness/buffer headroom is an
+  empirically supported mitigation on this host, not a universal guarantee for
+  arbitrary socket buffer settings, kernels, Qt versions or memory pressure.
+  The upstream writer remedy remains unbuffered writes with progress-aware poll.
+
+  New deterministic production-reader tests use the original buffered writer
+  pattern on a worker (5-second test poll timeout), with attribution retained.
+  Payloads: 8196, 16380, 16384, 16388, 33177600 and 33177604 bytes; every byte
+  is compared. Small cases finish QFile flush/FD close before reading; large
+  frames are checked against actual SO_SNDBUF and the reader starts only after
+  the first write. No sleeps or GUI production blocking were added. Existing
+  early EOF, timeout, invalid metadata and closure assertions are preserved.
+
+  Exact commands and outcomes:
+  ```text
+  cmake --build build-eof-diagnostic --target KWinScreenShot2ClientTests --parallel 2
+  PASS (existing CaptureDto SFINAE warning).
+  env QT_QPA_PLATFORM=offscreen ctest --test-dir build-eof-diagnostic -R '^KWinScreenShot2ClientTests$' --output-on-failure
+  PASS: 1/1, 0.62 s.
+  cmake --build build-eof-diagnostic --parallel 2
+  PASS: rebuilt ksnip and all test targets (existing CaptureDto warning).
+  env QT_QPA_PLATFORM=offscreen ctest --test-dir build-eof-diagnostic --output-on-failure
+  PASS: 18/18, 1.76 s. Qt 6.11.1, OCR-disabled diagnostic configuration retained.
+  git check-ignore build-eof-diagnostic/dist
+  build-eof-diagnostic/dist
+  python3 build-eof-diagnostic/stage-diagnostic.py
+  PASS: created new dist; refuses any existing destination. Root dist untouched.
+  python3 build-eof-diagnostic/check-install.py
+  PASS: isolated HOME refusal, confirmed install, reinstall, exact binary/Exec,
+  desktop validation, uninstall backup/restore and unrelated-file preservation.
+  Repeated with wrapper checks: resident guard and successful checksum/install/
+  validation/cache-refresh/launch argument flow pass; pgrep, kbuildsycoca6 and
+  systemd-cat were mocked, so no real session operation or launch occurred.
+  Evidence: build-eof-diagnostic/installer-check-vz3q2hne/
+  sha256sum --check SHA256SUMS
+  (workdir: build-eof-diagnostic/dist) PASS: all seven payload hashes.
+  bash -n build-eof-diagnostic/install-and-launch.sh build-eof-diagnostic/dist/install-user.sh build-eof-diagnostic/dist/uninstall-user.sh
+  desktop-file-validate build-eof-diagnostic/dist/org.ksnip.ksnip.desktop
+  git diff --check
+  PASS: all three checks.
+  sha256sum build-eof-diagnostic/dist/ksnip
+  15ceb095e5d5832e6eee10f0dfcf643583d54d537a69259e6cb00a2b9f1f09ec
+  ```
+
+  Sources: KWin writer/FD handling and executable authorization re-read from:
+  - https://raw.githubusercontent.com/KDE/kwin/v6.7.3/src/plugins/screenshot/screenshotdbusinterface2.cpp
+  - https://raw.githubusercontent.com/KDE/kwin/v6.7.3/src/utils/serviceutils.h
+    (initial serviceutils.cpp lookup returned HTTP 404; implementation is in .h).
+  Prior probe's Qt buffer/flush sources:
+  - https://raw.githubusercontent.com/qt/qtbase/v6.11.1/src/corelib/io/qfiledevice.cpp
+  - https://raw.githubusercontent.com/qt/qtbase/v6.11.1/src/corelib/io/qfsfileengine_unix.cpp
+
+  User commands (after tray Quit; keep launch terminal open):
+  ```bash
+  bash /home/stfu/ai/trash-can/ksnip/build-eof-diagnostic/install-and-launch.sh
+  journalctl -b -t ksnip-eof -o short-iso --no-pager
+  # After quitting the diagnostic, restore the previous user desktop override
+  # (or expose the system desktop entry when no previous override existed):
+  bash /home/stfu/ai/trash-can/ksnip/build-eof-diagnostic/dist/uninstall-user.sh
+  kbuildsycoca6 --noincremental
+  ```
+  No real user installation, process termination, live capture, system-file edit,
+  suspend, commit or push performed. Live authorization, capture repetition,
+  latency, resume and descriptor-leak acceptance remain pending. No claim that
+  the demonstrated synthetic mechanism explains every previously observed EOF.
+
+- 2026-09-10: Added failure-only ScreenShot2 transport diagnostics. IDs are
+  process-wide across client instances; dispatched D-Bus failures include the
+  error name and dispatch-to-reply time. Validated transfer failures include
+  expected/received bytes and width/height/stride/format/effective scale; worker
+  failures include queue and read durations in monotonic milliseconds. Read time
+  includes validation/allocation/read/image construction, and reply time includes
+  event-loop delivery. Unvalidated metadata is not dumped. Cancellation, async
+  ownership, deadlines, and fallback behavior are preserved. Synthetic EOF tests
+  now cover 0, 3, 4, and 23 of 24 bytes, reject partial images, verify descriptor
+  closure and detail fields; timeout detail is checked too.
+
+  Read-only runtime evidence:
+  ```text
+  rpm -q kwin kwin-wayland ksnip
+  kwin-6.7.3-1.fc44.x86_64
+  package kwin-wayland is not installed
+  ksnip-1.11.0-1.2875.gfae65bc1.fc44.x86_64
+  rpm -qf /usr/bin/kwin_wayland /usr/bin/ksnip
+  kwin-6.7.3-1.fc44.x86_64
+  ksnip-1.11.0-1.2875.gfae65bc1.fc44.x86_64
+  pgrep -a -x 'ksnip|kwin_wayland'
+  3557 /usr/bin/kwin_wayland [Wayland/Xwayland arguments]
+  2171304 /usr/bin/ksnip
+  readlink /proc/3557/exe /proc/2171304/exe
+  /usr/bin/ksnip (KWin exe symlink did not resolve)
+  journalctl -b --no-pager -o short-iso -g 'suspend entry|suspend exit|PM: suspend|System returned from sleep|ScreenShot2|image data ended|Error writing screenshot' -n 100
+  2026-09-10 00:27:58+03:00: PID 2171304 background early EOF
+  2026-09-10 01:17:20+03:00: suspend entry (s2idle)
+  2026-09-10 09:17:40+03:00: suspend exit
+  2026-09-10 12:35:47/49/52+03:00: PID 2171304 background early EOFs
+  journalctl -b _COMM=kwin_wayland --no-pager -o short-iso --since '2026-09-10 09:17:00' --until '2026-09-10 12:36:30' -n 50
+  2026-09-10 09:17:40+03:00: The main thread was hanging temporarily!
+  ```
+  This establishes temporal correlation, not suspend causality: EOF already
+  occurred before today's suspend in the same resident PID. Targeted glob lookup
+  for `screenshotdbusinterface2.cpp` under /home/stfu and screenshot sources under
+  /usr/src (including /usr/src/debug) found none. A /tmp lookup was denied by tool
+  policy and not retried. Producer-side write behavior remains unverified locally.
+  Installed desktop entry read at /usr/share/applications/org.ksnip.ksnip.desktop
+  has Exec=/usr/bin/ksnip and retains the ScreenShot2 restricted interface.
+
+  Exact build/check commands and outcomes:
+  ```text
+  cmake --build build-diagnostic --target ksnip --parallel 2
+  FAILED: build-diagnostic-deps/ort/Release/libonnxruntime_session.a missing.
+  env -u CONDA_PREFIX PATH=/usr/bin:/bin cmake -S . -B build-eof-diagnostic -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_WITH_QT6=ON -DBUILD_TESTS=ON -DENABLE_BUILTIN_OCR=OFF -DUSE_SUBMODULE_KCOLORPICKER=ON -DUSE_SUBMODULE_KIMAGEANNOTATOR=ON -DGTest_DIR=/usr/lib64/cmake/GTest
+  PASS. Separate capture-only candidate avoids rebuilding missing OCR dependencies.
+  cmake --build build-eof-diagnostic --target KWinScreenShot2ClientTests --parallel 2
+  First invocation hit the tool's 200000 ms limit at 172/375 steps; identical
+  command with 600000 ms limit resumed and passed.
+  env QT_QPA_PLATFORM=offscreen ctest --test-dir build-eof-diagnostic -R '^KWinScreenShot2ClientTests$' --output-on-failure
+  PASS: 1/1, 0.08 s.
+  cmake --build build-eof-diagnostic --parallel 2 > build-eof-diagnostic/build.log 2>&1
+  PASS: application and all tests (existing Qt deprecation warnings).
+  env QT_QPA_PLATFORM=offscreen ctest --test-dir build-eof-diagnostic --output-on-failure
+  PASS: 18/18, 0 failures, 0.87 s; includes fake OCR workflow, not real OCR engine.
+  env QT_QPA_PLATFORM=offscreen build-eof-diagnostic/src/ksnip --version
+  Version: 1.11.0; Build: [empty]
+  git diff --check
+  PASS.
+  sha256sum build-eof-diagnostic/src/ksnip /usr/bin/ksnip
+  90ce677b71d7257f99a5f0c2d97c654ebe1501cea425119f6e7c8056f5bf3cb0  build-eof-diagnostic/src/ksnip
+  e00d64f82ad591f5f50712565cf3c2e301b8f7d22158ad3f253db2b019b12f49  /usr/bin/ksnip
+  ```
+  No installation, resident termination, live screenshot, suspend, or commit was
+  performed. The candidate has built-in OCR disabled; use ordinary captures for
+  this transport investigation. User launch (after Quit from the tray), subject
+  to the desktop authorization prerequisite above:
+  ```bash
+  if pgrep -x ksnip >/dev/null; then
+      printf 'Quit the existing KSnip from its tray menu first.\n'
+  else
+      systemd-cat --identifier=ksnip-eof stdbuf -oL -eL /home/stfu/ai/trash-can/ksnip/build-eof-diagnostic/src/ksnip
+  fi
+  ```
+  Read results with `journalctl -b -t ksnip-eof -o short-iso --no-pager`.
+  Keep the launch terminal open. Capture before/after the next normal resume,
+  note the wall-clock time and selected mode, then compare the byte shortfall and
+  worker timings with the read-only journal commands above. Live authorization
+  and reproducing an EOF with this candidate remain untested.
 
 - 2026-08-31: Nine frozen-background early EOFs and one live-fallback early EOF
   were observed after display-state changes while the resident process remained

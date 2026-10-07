@@ -191,9 +191,17 @@ void KWinScreenShot2Client::captureArea(const QRect &area, bool captureCursor)
 
 void KWinScreenShot2Client::capture(const QString &method, const QVariantList &arguments, int timeoutMs)
 {
+	// Shared across clients so background and live-area requests have distinct IDs.
+	static std::atomic<quint64> requestId { 0 };
+	auto context = QStringLiteral("method=%1 request=%2 pid=%3 timeout_ms=%4")
+			.arg(method).arg(++requestId).arg(::getpid()).arg(timeoutMs);
 	int pipeDescriptors[2];
-	if (::pipe2(pipeDescriptors, O_CLOEXEC) != 0) {
-		emit failed(QStringLiteral("Failed to create ScreenShot2 pipe: %1").arg(QString::fromLocal8Bit(strerror(errno))));
+	// KWin's buffered QFile on a nonblocking fd can discard its final 16 KiB
+	// on flush when a small pipe is full. Unix stream sockets provide more
+	// POLLOUT headroom on Linux; this mitigates that writer bug, not all EOFs.
+	if (::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, pipeDescriptors) != 0) {
+		emit failed(QStringLiteral("Failed to create ScreenShot2 socket pair: %1; %2")
+				.arg(QString::fromLocal8Bit(strerror(errno)), context));
 		return;
 	}
 
@@ -203,35 +211,39 @@ void KWinScreenShot2Client::capture(const QString &method, const QVariantList &a
 	auto completeArguments = arguments;
 	completeArguments.append(QVariant::fromValue(writePipe));
 	message.setArguments(completeArguments);
+	QElapsedTimer dispatchTimer;
+	dispatchTimer.start();
 	auto pendingCall = QDBusConnection::sessionBus().asyncCall(message, timeoutMs);
 	::close(pipeDescriptors[1]);
 
 	auto watcher = new QDBusPendingCallWatcher(pendingCall, this);
 	connect(watcher, &QDBusPendingCallWatcher::finished, this,
-			[this, watcher, readPipe, timeoutMs] {
-				processCaptureReply(watcher, readPipe, timeoutMs);
+			[this, watcher, readPipe, timeoutMs, context, dispatchTimer] {
+				processCaptureReply(watcher, readPipe, timeoutMs, context, dispatchTimer);
 			});
 }
 
 void KWinScreenShot2Client::processCaptureReply(QDBusPendingCallWatcher *watcher,
 														 const QSharedPointer<PipeDescriptor> &readPipe,
-														 int readTimeoutMs)
+														 int readTimeoutMs, const QString &context, const QElapsedTimer &dispatchTimer)
 {
+	auto replyContext = context + QStringLiteral(" dispatch_to_reply_ms=%1").arg(dispatchTimer.elapsed());
 	QDBusPendingReply<QVariantMap> reply = *watcher;
 	watcher->deleteLater();
 	if (reply.isError()) {
 		if (reply.error().name() == sCancellationError) {
 			emit canceled();
 		} else {
-			emit failed(reply.error().message());
+			emit failed(QStringLiteral("%1: %2; %3")
+					.arg(reply.error().name(), reply.error().message(), replyContext));
 		}
 		return;
 	}
 
-	readImageAsync(readPipe->release(), reply.value(), readTimeoutMs);
+	readImageAsync(readPipe->release(), reply.value(), readTimeoutMs, replyContext);
 }
 
-void KWinScreenShot2Client::readImageAsync(int pipeFd, const QVariantMap &metadata, int timeoutMs)
+void KWinScreenShot2Client::readImageAsync(int pipeFd, const QVariantMap &metadata, int timeoutMs, const QString &context)
 {
 	auto watcher = new QFutureWatcher<ReadResult>(this);
 	connect(watcher, &QFutureWatcher<ReadResult>::finished, this, [this, watcher] {
@@ -243,8 +255,18 @@ void KWinScreenShot2Client::readImageAsync(int pipeFd, const QVariantMap &metada
 			emit imageReady(result.image);
 		}
 	});
-	watcher->setFuture(QtConcurrent::run([pipeFd, metadata, timeoutMs] {
-		return readImage(pipeFd, metadata, timeoutMs);
+	QElapsedTimer queueTimer;
+	queueTimer.start();
+	watcher->setFuture(QtConcurrent::run([pipeFd, metadata, timeoutMs, context, queueTimer] {
+		auto queueMs = queueTimer.elapsed();
+		QElapsedTimer readTimer;
+		readTimer.start();
+		auto result = readImage(pipeFd, metadata, timeoutMs);
+		if (!result.error.isEmpty()) {
+			result.error += QStringLiteral("; %1 worker_queue_ms=%2 worker_read_ms=%3")
+					.arg(context).arg(queueMs).arg(readTimer.elapsed());
+		}
+		return result;
 	}));
 }
 
@@ -300,11 +322,16 @@ KWinScreenShot2Client::ReadResult KWinScreenShot2Client::readImage(int pipeFd,
 	QByteArray content;
 	content.resize(static_cast<int>(byteCount));
 	qsizetype offset = 0;
+	auto transferError = [&](const QString &error) {
+		return errorResult(QStringLiteral("%1; expected_bytes=%2 received_bytes=%3 width=%4 height=%5 stride=%6 format=%7 scale=%8")
+				.arg(error).arg(byteCount).arg(offset).arg(widthValue).arg(heightValue)
+				.arg(strideValue).arg(formatValue).arg(scale, 0, 'g', 16));
+	};
 	auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs);
 	while (offset < content.size()) {
 		auto now = std::chrono::steady_clock::now();
 		if (now >= deadline) {
-			return errorResult(QLatin1String("Timed out while reading ScreenShot2 image data"));
+			return transferError(QLatin1String("Timed out while reading ScreenShot2 image data"));
 		}
 		auto remainingMs = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now).count();
 		pollfd pollDescriptor { pipeFd, POLLIN, 0 };
@@ -313,10 +340,10 @@ KWinScreenShot2Client::ReadResult KWinScreenShot2Client::readImage(int pipeFd,
 			pollResult = ::poll(&pollDescriptor, 1, static_cast<int>(std::max<qint64>(1, remainingMs)));
 		} while (pollResult < 0 && errno == EINTR);
 		if (pollResult == 0) {
-			return errorResult(QLatin1String("Timed out while reading ScreenShot2 image data"));
+			return transferError(QLatin1String("Timed out while reading ScreenShot2 image data"));
 		}
 		if (pollResult < 0 || (pollDescriptor.revents & (POLLERR | POLLNVAL))) {
-			return errorResult(QStringLiteral("Failed to wait for ScreenShot2 image data: %1")
+			return transferError(QStringLiteral("Failed to wait for ScreenShot2 image data: %1")
 									.arg(QString::fromLocal8Bit(strerror(errno))));
 		}
 		if (!(pollDescriptor.revents & (POLLIN | POLLHUP))) {
@@ -330,11 +357,11 @@ KWinScreenShot2Client::ReadResult KWinScreenShot2Client::readImage(int pipeFd,
 								 static_cast<size_t>(content.size() - offset));
 		} while (bytesRead < 0 && errno == EINTR);
 		if (bytesRead < 0) {
-			return errorResult(QStringLiteral("Failed to read ScreenShot2 image data: %1")
+			return transferError(QStringLiteral("Failed to read ScreenShot2 image data: %1")
 									.arg(QString::fromLocal8Bit(strerror(errno))));
 		}
 		if (bytesRead == 0) {
-			return errorResult(QLatin1String("ScreenShot2 image data ended before the image was complete"));
+			return transferError(QLatin1String("ScreenShot2 image data ended before the image was complete"));
 		}
 		offset += bytesRead;
 	}
@@ -346,7 +373,7 @@ KWinScreenShot2Client::ReadResult KWinScreenShot2Client::readImage(int pipeFd,
 							format);
 	auto image = rawImage.copy();
 	if (image.isNull()) {
-		return errorResult(QLatin1String("Failed to construct the ScreenShot2 image"));
+		return transferError(QLatin1String("Failed to construct the ScreenShot2 image"));
 	}
 	image.setDevicePixelRatio(scale);
 	return { image, QString() };

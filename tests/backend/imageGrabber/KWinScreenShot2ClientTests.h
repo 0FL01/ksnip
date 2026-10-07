@@ -11,13 +11,19 @@
 #define KSNIP_KWINSCREENSHOT2CLIENTTESTS_H
 
 #include <QtTest>
+#include <QFile>
+#include <QSemaphore>
+#include <future>
 
 class KWinScreenShot2ClientTests : public QObject
 {
 	Q_OBJECT
 private slots:
 	void ReadImage_Should_ReturnCompleteImage_When_MetadataAndPayloadAreValid();
+	void ReadImage_Should_ReturnCompleteImage_When_BufferedKWinWriterUsesSocket_data();
+	void ReadImage_Should_ReturnCompleteImage_When_BufferedKWinWriterUsesSocket();
 	void ReadImage_Should_Fail_When_PayloadEndsEarly();
+	void ReadImage_Should_Fail_When_PayloadEndsEarly_data();
 	void ReadImage_Should_Fail_When_ReadTimesOut();
 	void ReadImage_Should_CloseDescriptor_When_MetadataIsInvalid();
 	void CaptureArea_Should_FailWithoutDBusCall_When_SizeIsEmpty();

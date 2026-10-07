@@ -28,6 +28,7 @@
 #include <QtDBus/QDBusUnixFileDescriptor>
 #include <QtDBus/QDBusVariant>
 #include <QFutureWatcher>
+#include <QElapsedTimer>
 #include <QImage>
 #include <QObject>
 #include <QRect>
@@ -35,6 +36,7 @@
 #include <QVariantMap>
 
 #include <algorithm>
+#include <atomic>
 #include <cerrno>
 #include <chrono>
 #include <cmath>
@@ -42,6 +44,7 @@
 #include <fcntl.h>
 #include <limits>
 #include <poll.h>
+#include <sys/socket.h>
 #include <unistd.h>
 
 class KWinScreenShot2Client : public QObject
@@ -80,8 +83,8 @@ private:
 	void capture(const QString &method, const QVariantList &arguments, int timeoutMs);
 	void processCaptureReply(QDBusPendingCallWatcher *watcher,
 							 const QSharedPointer<PipeDescriptor> &readPipe,
-							 int readTimeoutMs);
-	void readImageAsync(int pipeFd, const QVariantMap &metadata, int timeoutMs);
+							 int readTimeoutMs, const QString &context, const QElapsedTimer &dispatchTimer);
+	void readImageAsync(int pipeFd, const QVariantMap &metadata, int timeoutMs, const QString &context);
 	static QVariantMap createOptions(bool captureCursor);
 };
 
