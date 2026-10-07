@@ -161,12 +161,12 @@ record the exact evidence and smallest unlock.
   - Primary evidence: build/test commands, package inventory, dependency
     inspection, and installed fixture result.
   - Status: in_progress
-  - Evidence: the OCR-enabled Fedora 44 binary RPM and complete SRPM build
-    successfully from the immutable source closure. `%check` passes all 18 Qt 6
-    tests. Package inventory, `Requires`, `readelf`, and `ldd` show embedded-only
-    models and no dynamic OCR dependency. Installation and live recognition
-    from this exact RPM pass in the target session. The installed binary is
-    byte-identical to the extracted RPM payload and is the running process. The
+  - Evidence: the new full OCR RPM at `bc1e800f` passes `%check` 18/18 and the
+    complete Source0-14 SRPM/receipt audit under isolated build networking.
+    Embedded blobs, `Requires`, `readelf`, and `ldd` pass; this exact candidate
+    has not been installed or used for production inference. Earlier installed
+    RPMs passed live recognition, with their installed binaries byte-identical
+    to extracted payloads and running processes. That evidence is historical. The
     user later reproduced a package-only missing clipboard result, invalidating
     final installed acceptance. The resource-target fix was then rebuilt into an
     RPM whose ELF contains each pinned model/dictionary blob exactly once; the
@@ -239,11 +239,18 @@ record the exact evidence and smallest unlock.
 
 ## Current checkpoint
 
-- Phase: shortcut and transport commits pushed; first full OCR RPM passes binary
-  gates, but source-closure inspection found an unlisted ORT JSON archive.
-- Smallest next action: commit the pinned JSON lock/spec correction, reseal source,
-  and rebuild in a separate topdir. Require all 12 ORT population receipts to use
-  local SRPM archives; the first candidate is not the final delivery.
+- Phase: requested implementation, source commit/push, full OCR RPM/SRPM rebuild
+  and independent artifact verification complete; installed live acceptance pending.
+- Delivered source seal: clean `bc1e800f3d7d0a69b058816d1d3c638c064d0959`, count
+  2879, with both pinned submodules. This later delivery-documentation update is
+  outside Source0; it does not change the shipped code or archived source identity.
+- Final RPM: `build-ocr-shortcuts-rpm-final/RPMS/x86_64/ksnip-1.11.0-1.2879.gbc1e800f.fc44.x86_64.rpm`.
+  SHA256: `5472e5635745a5636f6de903a1ed177e68761a19faf7d682d4e3ece7dc1cb84f`.
+- Final SRPM: `build-ocr-shortcuts-rpm-final/SRPMS/ksnip-1.11.0-1.2879.gbc1e800f.fc44.src.rpm`.
+  SHA256: `d358bc51d6a5b624bfab6610fd88114c34bd2567064858bd0f7a7573090ba7c1`.
+- Smallest next action: after user tray Quit, install the exact final RPM and
+  launch through the normal KDE desktop identity; observe confirmed physical
+  activation and real fixture recognition across start, clean restart and reboot.
 - Preserve the committed ScreenShot2 socketpair mitigation and diagnostics. No
   capture-only diagnostic is to be deployed under the main desktop identity.
 - Installed baseline from preflight: `1:ksnip-1.11.0-1.2876.gccf15f2a.dirty.fc44.x86_64`;
@@ -271,7 +278,7 @@ record the exact evidence and smallest unlock.
 - [x] Offline RU/EN OCR engine feasibility gate
 - [x] RectArea-to-clipboard vertical slice
 - [x] OCR shortcut and settings (automated; historical live activation evidence)
-- [ ] OCR-enabled RPM and SRPM complete source closure (JSON omission found)
+- [x] OCR-enabled RPM and SRPM complete source closure (14 archives, offline rebuild)
 - [x] Fractional-scale normal RectArea crop (automated and live local evidence)
 - [x] Fractional-scale OCR crop live acceptance
 - [x] Incomplete-background live-selector fallback (automated evidence)
@@ -425,6 +432,70 @@ existing Miniconda Python for ORT generation, not the compiler/Qt toolchain.
   Wayland widget because Qt does not uniformly support that transition.
 
 ## Checkpoint history
+
+- 2026-10-07: JSON closure correction `bc1e800f` committed and pushed. Rebuilt
+  the full Qt6/OCR candidate in `build-ocr-shortcuts-rpm-final` from clean committed
+  source, leaving the first candidate and its failed-closure evidence unchanged.
+  All 29 BuildRequires were rechecked: 28 present, only `python3-flatbuffers`
+  missing. Guarded `--nodeps` preserves that declaration and uses existing Python
+  3.13.5 / flatbuffers 25.12.19 / packaging 26.1 only for ORT generation; the
+  compiler/linker/CMake/Qt PATH remains system-only. This is a local prerequisite
+  exception, not a dependency-checked Fedora-only rebuild claim.
+
+  Exact sanitized launcher and full shell transcript are
+  `build-ocr-shortcuts-rpm-final/build-rpm.sh` and `rpmbuild.log`. The launcher
+  uses a private user/network namespace and executes:
+  ```text
+  /usr/bin/unshare --user --map-root-user --net -- /usr/bin/python3 -I -B \
+    /home/stfu/ai/trash-can/ksnip/build-ocr-shortcuts-rpm-final/verify-network-namespace.py 4026531833 \
+    /usr/bin/rpmbuild -ba --noclean --nodeps \
+    --define "_topdir /home/stfu/ai/trash-can/ksnip/build-ocr-shortcuts-rpm-final" \
+    --define "_smp_build_ncpus 2" \
+    /home/stfu/ai/trash-can/ksnip/build-ocr-shortcuts-rpm-final/SPECS/ksnip.spec
+  PASS: exit 0; 55m12s; external IPv4/IPv6 connections blocked, AF_UNIX working.
+  ```
+  The host namespace inode shown is execution evidence, not a portable constant;
+  the launcher recomputes it. An initial verification-only guard rejected IPv6's
+  `EADDRNOTAVAIL` before rpmbuild started; after accepting that no-address result,
+  the single full final build completed. The guard failure log is retained.
+
+  `%check` passes 18/18 (3.37 s); post-build full CTest passes 18/18 (3.38 s),
+  and the focused private-bus manager run passes all 18 QtTest entries with zero
+  failures/skips. Parent independently reran the exact RPM build's suite:
+  ```text
+  env -u CONDA_PREFIX -u CMAKE_PREFIX_PATH -u PYTHONPATH -u PYTHONHOME -u LD_LIBRARY_PATH -u LIBRARY_PATH PATH=/usr/bin:/bin LC_ALL=C QT_QPA_PLATFORM=offscreen /usr/bin/unshare --user --map-root-user --net -- /usr/bin/dbus-run-session -- /usr/bin/ctest --test-dir build-ocr-shortcuts-rpm-final/BUILD/ksnip-1.11.0-build/ksnip-1.11.0/redhat-linux-build --output-on-failure -j1
+  PASS: 18/18, 0 failures, 3.46 s.
+  /usr/bin/python3 -I -B build-ocr-shortcuts-rpm-final/verify-source.py
+  PASS: all 1386 Source0 entries byte-match committed root/submodule blobs.
+  /usr/bin/python3 -I -B build-ocr-shortcuts-rpm-final/verify-local-mirror.py
+  PASS: 14 locked archives; 16 byte-matching SRPM files; 12/12 receipts using
+  12 distinct local SRPM archives; zero remote URLs; network-isolated build.
+  env -u CONDA_PREFIX -u CMAKE_PREFIX_PATH -u PYTHONPATH -u PYTHONHOME -u LD_LIBRARY_PATH -u LIBRARY_PATH PATH=/usr/bin:/bin LC_ALL=C QT_QPA_PLATFORM=offscreen /usr/bin/unshare --user --map-root-user --net -- /usr/bin/python3 -I -B build-ocr-shortcuts-rpm-final/verify-packages.py
+  PASS: RPM/SRPM digests, full OCR/static build options, effective RCC -fno-lto,
+  each pinned blob once, socketpair import, no dynamic OCR/Qt5/missing libs/RPATH,
+  desktop identity/restricted interface, offline metadata validators, upgrade EVR.
+  sha256sum -c SHA256SUMS  (workdir: build-ocr-shortcuts-rpm-final)
+  PASS: 8/8 entries, including both RPMs, Source0, spec, ELF, patch and reports.
+  ```
+  Private namespaced D-Bus emits a harmless inaccessible `/root` service-watch
+  warning; all test transport/registration gates pass. AppStream passes with
+  three pre-existing informational metadata findings, not validation errors.
+
+  Binary RPM size: 17,995,453 bytes; SRPM: 433,461,424 bytes; installed payload:
+  36,226,200 bytes. Packaged ELF SHA256:
+  `a975cf6437d376da2a35503e253f69069d3f35b409529cf51228b61af2907873`.
+  Source0 SHA256: `82e4f05b2d823f917bfe5713012448631e4a31620fdef282dc314b8796756d11`.
+  Final NEVRA: `1:ksnip-1.11.0-1.2879.gbc1e800f.fc44.x86_64`; `--version`
+  reports `1.11.0-2879.gbc1e800f`, full build SHA `bc1e800f...`.
+  `rpm.labelCompare` proves this upgrades the installed dirty RPM and first candidate.
+  Reports/manifests are in the final topdir: `build-info.txt`, `test-report.md`,
+  `SHA256SUMS`, `source.patch` (baseline `ccf15f2a...` through sealed `bc1e800f...`).
+
+  No installation or live user-bus/UI mutation occurred. Read-only final checks
+  still show installed `1:ksnip-1.11.0-1.2876.gccf15f2a.dirty.fc44.x86_64` and
+  resident PID 6689 `/usr/bin/ksnip`. Fixture tests use a fake recognizer, so real
+  production inference, physical-key delivery, restart/reboot and sleep acceptance
+  remain pending and must not be inferred from ID inventory or package inspection.
 
 - 2026-10-07: Committed and pushed `fac6098d` (transport) and `e93f80e5`
   (fresh-session shortcut Bind) to `origin/master`. Full OCR Qt6 RPM `%check`
