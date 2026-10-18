@@ -20,13 +20,14 @@
 #include "CaptureTabStateHandler.h"
 
 CaptureTabStateHandler::CaptureTabStateHandler() :
-	mCurrentTabIndex(-1)
+	mCurrentTabIndex(-1),
+	mNextDocumentId(1)
 {
 }
 
 void CaptureTabStateHandler::add(int index, const QString &filename, const QString &path, bool isSaved)
 {
-	auto newState = QSharedPointer<CaptureTabState>(new CaptureTabState(index, filename, path, isSaved));
+	auto newState = QSharedPointer<CaptureTabState>(new CaptureTabState(index, mNextDocumentId++, filename, path, isSaved));
 	mCaptureTabStates.append(newState);
 	refreshTabInfo(index);
 }
@@ -83,9 +84,18 @@ void CaptureTabStateHandler::tabMoved(int fromIndex, int toIndex)
 	for (auto& state : mCaptureTabStates) {
 		if(state->index == fromIndex) {
 			state->index = toIndex;
-		} else if(state->index == toIndex) {
-			state->index = fromIndex;
+		} else if (fromIndex < toIndex && state->index > fromIndex && state->index <= toIndex) {
+			--state->index;
+		} else if (fromIndex > toIndex && state->index >= toIndex && state->index < fromIndex) {
+			++state->index;
 		}
+	}
+	if (mCurrentTabIndex == fromIndex) {
+		mCurrentTabIndex = toIndex;
+	} else if (fromIndex < toIndex && mCurrentTabIndex > fromIndex && mCurrentTabIndex <= toIndex) {
+		--mCurrentTabIndex;
+	} else if (fromIndex > toIndex && mCurrentTabIndex >= toIndex && mCurrentTabIndex < fromIndex) {
+		++mCurrentTabIndex;
 	}
 }
 
@@ -113,6 +123,7 @@ void CaptureTabStateHandler::currentTabContentChanged()
 {
 	auto currentTabState = getTabState(mCurrentTabIndex);
 	if (!currentTabState.isNull()) {
+		++currentTabState->revision;
 		currentTabState->isSaved = false;
 		refreshTabInfo(mCurrentTabIndex);
 	}
@@ -137,7 +148,40 @@ int CaptureTabStateHandler::currentTabIndex() const
 	return mCurrentTabIndex;
 }
 
-QSharedPointer<CaptureTabState> CaptureTabStateHandler::getTabState(int index)
+quint64 CaptureTabStateHandler::documentId(int index) const
+{
+	auto state = getTabState(index);
+	return state.isNull() ? 0 : state->documentId;
+}
+
+quint64 CaptureTabStateHandler::revision(int index) const
+{
+	auto state = getTabState(index);
+	return state.isNull() ? 0 : state->revision;
+}
+
+int CaptureTabStateHandler::indexForDocument(quint64 documentId) const
+{
+	for (const auto &state : mCaptureTabStates) {
+		if (state->documentId == documentId) {
+			return state->index;
+		}
+	}
+	return -1;
+}
+
+bool CaptureTabStateHandler::setSaveStateIfRevision(quint64 documentId, quint64 revision, const SaveResultDto &saveResult)
+{
+	auto index = indexForDocument(documentId);
+	auto state = getTabState(index);
+	if (state.isNull() || state->revision != revision || !saveResult.isSuccessful) {
+		return false;
+	}
+	setSaveState(index, saveResult);
+	return indexForDocument(documentId) >= 0 && state->revision == revision && state->isSaved;
+}
+
+QSharedPointer<CaptureTabState> CaptureTabStateHandler::getTabState(int index) const
 {
 	for (auto &state : mCaptureTabStates) {
 		if (state->index == index) {

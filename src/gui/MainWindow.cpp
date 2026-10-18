@@ -62,7 +62,7 @@ MainWindow::MainWindow(DependencyInjector *dependencyInjector) :
 	mClipboard(mDependencyInjector->get<IClipboard>()),
 	mCapturePrinter(new CapturePrinter(this)),
 	mGlobalHotKeyHandler(new GlobalHotKeyHandler(mImageGrabber->supportedCaptureModes(), mDependencyInjector->get<IPlatformChecker>(), mConfig, this)),
-	mDragAndDropProcessor(new DragAndDropProcessor(this, mDependencyInjector->get<ITempFileProvider>())),
+	mDragAndDropProcessor(new DragAndDropProcessor(this, mDependencyInjector->get<ITempFileProvider>(), [this] { return canAcquireImage(); })),
 	mUploadHandler(mDependencyInjector->get<IUploadHandler>()),
 	mSessionManagerRequestedQuit(false),
 	mResizeOnNormalize(false),
@@ -95,6 +95,21 @@ MainWindow::MainWindow(DependencyInjector *dependencyInjector) :
 	coreApplication->installEventFilter(mDragAndDropProcessor);
 	connect(mDragAndDropProcessor, &DragAndDropProcessor::fileDropped, this, &MainWindow::loadImageFromFile);
 	connect(mDragAndDropProcessor, &DragAndDropProcessor::imageDropped, this, &MainWindow::loadImageFromPixmap);
+	connect(mDragAndDropProcessor, &DragAndDropProcessor::temporaryFileDropped, this, &MainWindow::loadTemporaryImageFile);
+	connect(mDragAndDropProcessor, &DragAndDropProcessor::imageInputRejected, this, &MainWindow::notifyImageInputBusy);
+	connect(mImageAnnotator, &IImageAnnotator::currentImageReadyChanged, this, [this] {
+		refreshImageEnablements();
+		scheduleInputPump();
+	});
+	connect(mImageAnnotator, &IImageAnnotator::imageAdmissionChanged, this, [this] {
+		refreshImageEnablements();
+		scheduleInputPump();
+	});
+	connect(mImageAnnotator, &IImageAnnotator::rasterBackingError, this, [this](const QString &message) {
+		NotifyOperation operation(tr("Screenshot backing storage"), message, NotificationTypes::Critical, mNotificationService, mConfig);
+		operation.execute();
+		refreshImageEnablements();
+	});
 
 	connect(mConfig.data(), &IConfig::annotatorConfigChanged, this, &MainWindow::setupImageAnnotator);
 
@@ -112,6 +127,7 @@ MainWindow::MainWindow(DependencyInjector *dependencyInjector) :
 	connect(mOcrCaptureWorkflow, &OcrCaptureWorkflow::editorCaptureCanceled, mActionProcessor, &ActionProcessor::captureCanceled);
 	connect(mOcrCaptureWorkflow, &OcrCaptureWorkflow::captureReleased, this, [this] {
 		mCapturePending = false;
+		releaseImageInput();
 		mVisibilityHandler->restoreState();
 	});
 	connect(mOcrCaptureWorkflow, &OcrCaptureWorkflow::captureRequested, this, [this] {
@@ -154,18 +170,20 @@ MainWindow::MainWindow(DependencyInjector *dependencyInjector) :
 
 	mCaptureHandler->addListener(this);
 
-	handleGuiStartup();
 	setupImageAnnotator();
+	mImageAnnotator->enableRasterBacking();
+	handleGuiStartup();
 	resize(minimumSize());
 	loadSettings();
 }
 
 MainWindow::~MainWindow()
 {
+	mCaptureHandler->cancelPendingOperations();
+	delete mCaptureHandler;
 	delete mImageAnnotator;
 	delete mCapturePrinter;
 	delete mDragAndDropProcessor;
-	delete mCaptureHandler;
 	delete mVisibilityHandler;
 	delete mWindowResizer;
 	delete mActionProcessor;
@@ -198,11 +216,21 @@ void MainWindow::setPosition()
 
 void MainWindow::captureScreenshot(CaptureModes captureMode, bool captureCursor, int delay)
 {
+	// Reject a second producer without canceling the action owning the first
+	// capture (or a replacement-confirmation dialog's reservation).
+	if (mCapturePending || mImageInputReserved) {
+		return;
+	}
 #ifdef UNIX_X11
 	if (mOcrCaptureWorkflow->isCapturePending()) {
 		return;
 	}
 #endif
+	if (!reserveImageInput(true)) {
+		mActionProcessor->captureCanceled();
+		return;
+	}
+	hideMainWindowIfRequired();
 	mCapturePending = true;
 	mImageGrabber->grabImage(captureMode, captureCursor, delay);
 }
@@ -210,32 +238,70 @@ void MainWindow::captureScreenshot(CaptureModes captureMode, bool captureCursor,
 #ifdef KSNIP_BUILTIN_OCR
 void MainWindow::triggerOcrCapture()
 {
-	if(mCapturePending || !mCaptureHandler->canTakeNew()) {
+	if(!reserveImageInput(true)) {
 		return;
 	}
-	mOcrCaptureWorkflow->start(mOcrRecognizer);
+	if (!mOcrCaptureWorkflow->start(mOcrRecognizer)) {
+		releaseImageInput();
+	}
 }
 #endif
 
 void MainWindow::quit()
 {
-	if(!mCaptureHandler->canClose()){
+	if (mQuitPending) {
 		return;
 	}
-
-	mTrayIcon->hide();
-	QCoreApplication::exit(0);
+	if (mImageInputReserved || mCapturePending) {
+		mQuitAfterInput = true;
+		return;
+	}
+	mQuitPending = true;
+	refreshImageEnablements();
+	const QPointer<MainWindow> window(this);
+	mCaptureHandler->requestClose([window](bool allowed) {
+		if (!window) {
+			return;
+		}
+		if (allowed) {
+			window->mImageAnnotator->closeRasterBacking([window]() {
+				if (!window) { return; }
+				window->mTrayIcon->hide();
+				QCoreApplication::exit(0);
+			});
+		} else {
+			window->mQuitPending = false;
+			window->refreshImageEnablements();
+			window->scheduleInputPump();
+		}
+	});
 }
 
 void MainWindow::processCapture(const CaptureDto &capture)
 {
+	const auto ownsReservation = !mImageInputReserved;
+	if (ownsReservation && !reserveImageInput(false, capture.isValid())) {
+		notifyImageInputBusy();
+		return;
+	}
 	processCapture(capture, false);
+	if (ownsReservation) {
+		releaseImageInput();
+	}
 }
 
 void MainWindow::processScreenshotCapture(const CaptureDto &capture)
 {
+	if (mCaptureHandler->isBusy()) {
+		// Exactly one admitted capture can finish while a tab operation is busy.
+		// Keep that frame, not a queue of decoded captures.
+		mDeferredScreenshot = std::make_unique<CaptureDto>(capture);
+		scheduleInputPump();
+		return;
+	}
 	auto hideEditor = mHideEditorAfterCaptureEnabled && !mActionProcessor->isActionInProgress();
 	processCapture(capture, hideEditor);
+	releaseImageInput();
 }
 
 void MainWindow::processCapture(const CaptureDto &capture, bool hideEditor)
@@ -255,12 +321,21 @@ void MainWindow::processCapture(const CaptureDto &capture, bool hideEditor)
 
 void MainWindow::processImage(const CaptureDto &capture)
 {
+	const auto ownsReservation = !mImageInputReserved;
+	if (ownsReservation && !reserveImageInput(false, capture.isValid())) {
+		notifyImageInputBusy();
+		return;
+	}
 	processImage(capture, false);
+	if (ownsReservation) {
+		releaseImageInput();
+	}
 }
 
 void MainWindow::processImage(const CaptureDto &capture, bool hideEditor)
 {
 	mCaptureHandler->load(capture);
+	mHasAcceptedImage = true;
 	if (!mActionProcessor->isActionInProgress()) { 	// The action processor handles the showing of the main window
 		if (hideEditor) {
 			mVisibilityHandler->enforceHidden();
@@ -276,6 +351,9 @@ void MainWindow::processImage(const CaptureDto &capture, bool hideEditor)
 
 DragContent MainWindow::dragContent() const
 {
+	if (!canUseCurrentImage()) {
+		return DragContent();
+	}
 	return DragContent(mCaptureHandler->image(), mCaptureHandler->path(), mCaptureHandler->isSaved());
 }
 
@@ -389,12 +467,9 @@ void MainWindow::changeEvent(QEvent *event)
 
 void MainWindow::captureChanged()
 {
-	mToolBar->setSaveActionEnabled(!mCaptureHandler->isSaved());
-	mCopyPathAction->setEnabled(mCaptureHandler->isPathValid());
-	mRenameAction->setEnabled(mCaptureHandler->isPathValid());
-	mOpenDirectoryAction->setEnabled(mCaptureHandler->isPathValid());
-	mRemoveImageAction->setEnabled(mCaptureHandler->isPathValid());
+	refreshImageEnablements();
 	updateApplicationTitle();
+	scheduleInputPump();
 }
 
 void MainWindow::updateApplicationTitle()
@@ -407,6 +482,18 @@ void MainWindow::updateApplicationTitle()
 
 void MainWindow::setEnablements(bool enabled)
 {
+	mHasCapture = enabled;
+	refreshImageEnablements();
+}
+
+bool MainWindow::canUseCurrentImage() const
+{
+	return mHasCapture && mImageAnnotator->isCurrentImageReady() && !mCaptureHandler->isBusy();
+}
+
+void MainWindow::refreshImageEnablements()
+{
+	const auto enabled = canUseCurrentImage();
 	mPrintAction->setEnabled(enabled);
 	mPrintPreviewAction->setEnabled(enabled);
 	mUploadAction->setEnabled(enabled);
@@ -417,10 +504,16 @@ void MainWindow::setEnablements(bool enabled)
 	mToolBar->setCopyActionEnabled(enabled);
 	mToolBar->setCropEnabled(enabled);
 	mSaveAsAction->setEnabled(enabled);
-	mSaveAllAction->setEnabled(enabled);
+	mSaveAllAction->setEnabled(mHasCapture && !mCaptureHandler->isBusy());
 	mPinAction->setEnabled(enabled);
-	mPasteEmbeddedAction->setEnabled(mClipboard->isPixmap() && mImageAnnotator->isVisible());
-	mRenameAction->setEnabled(enabled);
+	mPasteEmbeddedAction->setEnabled(enabled && mImageAnnotator->canAcceptImage() && mClipboard->isPixmap() && mImageAnnotator->isVisible());
+	mPasteAction->setEnabled(canAcquireImage() && mClipboard->isPixmap());
+	const auto pathEnabled = enabled && mCaptureHandler->isPathValid();
+	mToolBar->setSaveActionEnabled(enabled && !mCaptureHandler->isSaved());
+	mCopyPathAction->setEnabled(pathEnabled);
+	mRenameAction->setEnabled(pathEnabled);
+	mOpenDirectoryAction->setEnabled(pathEnabled);
+	mRemoveImageAction->setEnabled(pathEnabled);
 	mModifyCanvasAction->setEnabled(enabled);
 	mCutAction->setEnabled(enabled);
 	mActionProcessor->setPostProcessingEnabled(enabled);
@@ -439,10 +532,6 @@ void MainWindow::loadSettings()
 
 void MainWindow::triggerCapture(CaptureModes captureMode)
 {
-	if(!mCaptureHandler->canTakeNew()){
-		return;
-	}
-
 	mConfig->setCaptureMode(captureMode);
 
 	capture(captureMode, mConfig->captureCursor(), mConfig->captureDelay());
@@ -452,8 +541,6 @@ void MainWindow::capture(CaptureModes captureMode, bool captureCursor, int delay
 {
 	auto isMainWindowVisible = !isMinimized();
 	auto adjustedDelay = mDelayHandler->getDelay(delay, isMainWindowVisible);
-
-	hideMainWindowIfRequired();
 
 	captureScreenshot(captureMode, captureCursor, adjustedDelay);
 }
@@ -591,14 +678,13 @@ void MainWindow::initGui()
 	mPasteAction->setShortcut(Qt::CTRL | Qt::Key_V);
 	mPasteAction->setEnabled(mClipboard->isPixmap());
 	connect(mPasteAction, &QAction::triggered, this, &MainWindow::pasteFromClipboard);
-	connect(mClipboard.data(), &IClipboard::changed, mPasteAction, &QAction::setEnabled);
+	connect(mClipboard.data(), &IClipboard::changed, this, &MainWindow::refreshImageEnablements);
 
 	mPasteEmbeddedAction->setText(tr("Paste Embedded"));
 	mPasteEmbeddedAction->setIcon(iconLoader->loadForTheme(QLatin1String("pasteEmbedded")));
 	mPasteEmbeddedAction->setShortcut(Qt::CTRL | Qt::SHIFT | Qt::Key_V);
 	mPasteEmbeddedAction->setEnabled(mClipboard->isPixmap() && mImageAnnotator->isVisible());
 	connect(mPasteEmbeddedAction, &QAction::triggered, this, &MainWindow::pasteEmbeddedFromClipboard);
-	connect(mClipboard.data(), &IClipboard::changed, [this] (bool isPixmap){ mPasteEmbeddedAction->setEnabled(isPixmap && mImageAnnotator->isVisible()); });
 
 	mPinAction->setText(tr("Pin"));
 	mPinAction->setToolTip(tr("Pin screenshot to foreground in frameless window"));
@@ -698,6 +784,9 @@ void MainWindow::copyCaptureToClipboard()
 
 void MainWindow::upload()
 {
+	if (!canUseCurrentImage()) {
+		return;
+	}
 	auto image = mCaptureHandler->image();
 	UploadOperation operation(image, mUploadHandler, mConfig, mDependencyInjector->get<IMessageBoxService>());
 	operation.execute();
@@ -705,6 +794,9 @@ void MainWindow::upload()
 
 void MainWindow::copyAsDataUri()
 {
+	if (!canUseCurrentImage()) {
+		return;
+	}
 	auto image = mCaptureHandler->image();
 	CopyAsDataUriOperation operation(image, mClipboard, mNotificationService, mConfig);
 	operation.execute();
@@ -712,6 +804,9 @@ void MainWindow::copyAsDataUri()
 
 void MainWindow::printClicked()
 {
+	if (!canUseCurrentImage()) {
+		return;
+	}
 	auto savePath = mSavePathProvider->savePathWithFormat(QLatin1String("pdf"));
 	auto image = mCaptureHandler->image();
 	mCapturePrinter->print(image, savePath);
@@ -719,6 +814,9 @@ void MainWindow::printClicked()
 
 void MainWindow::printPreviewClicked()
 {
+	if (!canUseCurrentImage()) {
+		return;
+	}
 	auto savePath = mSavePathProvider->savePathWithFormat(QLatin1String("pdf"));
 	auto image = mCaptureHandler->image();
 	mCapturePrinter->printPreview(image, savePath);
@@ -756,8 +854,12 @@ void MainWindow::captureDelayChanged(int delay)
 
 void MainWindow::addWatermark()
 {
+	if (!canUseCurrentImage() || !reserveImageInput(false)) {
+		return;
+	}
 	AddWatermarkOperation operation(mImageAnnotator, mConfig);
 	operation.execute();
+	releaseImageInput();
 }
 
 void MainWindow::showDialog(const std::function<void ()>& showDialogMethod)
@@ -793,6 +895,9 @@ void MainWindow::showAboutDialog()
 
 void MainWindow::showScaleDialog()
 {
+	if (!canUseCurrentImage()) {
+		return;
+	}
 	showDialog([&](){
 		mImageAnnotator->showScaler();
 	});
@@ -800,6 +905,9 @@ void MainWindow::showScaleDialog()
 
 void MainWindow::showRotateDialog()
 {
+	if (!canUseCurrentImage()) {
+		return;
+	}
 	showDialog([&](){
 		mImageAnnotator->showRotator();
 	});
@@ -807,6 +915,10 @@ void MainWindow::showRotateDialog()
 
 void MainWindow::pasteFromClipboard()
 {
+	if (!reserveImageInput(false)) {
+		notifyImageInputBusy();
+		return;
+	}
 	auto pixmap = mClipboard->pixmap();
 
 	if (mClipboard->url().isNull()) {
@@ -815,12 +927,17 @@ void MainWindow::pasteFromClipboard()
 		CaptureFromFileDto captureDto(pixmap, mClipboard->url());
 		processImage(captureDto);
 	}
+	releaseImageInput();
 }
 
 void MainWindow::pasteEmbeddedFromClipboard()
 {
+	if (!canUseCurrentImage() || !reserveImageInput(false)) {
+		return;
+	}
 	auto pixmap = mClipboard->pixmap();
 	mCaptureHandler->insertImageItem({}, pixmap);
+	releaseImageInput();
 }
 
 void MainWindow::saveClicked()
@@ -840,13 +957,129 @@ void MainWindow::saveAllClicked()
 
 void MainWindow::loadImageFromFile(const QString &path)
 {
-	LoadImageFromFileOperation operation(
-			path,
-			this,
-			mNotificationService,
-			mDependencyInjector->get<IRecentImageService>(),
-			mDependencyInjector->get<IFileService>(),
-			mConfig);
+	openImageFile(path);
+}
+
+void MainWindow::openImageFile(const QString &path, bool withCapturePostProcessing)
+{
+	if (!path.isEmpty()) {
+		mPendingImageFiles.enqueue({path, withCapturePostProcessing});
+		scheduleInputPump();
+	}
+}
+
+void MainWindow::openImageData(const QByteArray &data)
+{
+	if (!reserveImageInput(false)) {
+		notifyImageInputBusy();
+		return;
+	}
+	QPixmap pixmap;
+	pixmap.loadFromData(data);
+	processCapture(CaptureDto(pixmap), false);
+	releaseImageInput();
+}
+
+void MainWindow::loadTemporaryImageFile(const QString &path)
+{
+	// A drop source may remove this file when the drop returns: decode now,
+	// under admission, or reject it. Never enqueue a borrowed temporary path.
+	if (!reserveImageInput(false)) {
+		notifyImageInputBusy();
+		return;
+	}
+	loadImageFromPixmap(QPixmap(path));
+	releaseImageInput();
+}
+
+bool MainWindow::canAcquireImage() const
+{
+	return !mImageInputReserved && !mCapturePending && !mQuitPending && !mQuitAfterInput &&
+		!mCaptureHandler->isBusy() && mImageAnnotator->canAcceptImage();
+}
+
+bool MainWindow::reserveImageInput(bool checkReplacement, bool permitInitialImage)
+{
+	// CLI startup can already own its first screenshot before the editor/cache
+	// exists. Keep that single image usable for Save/Copy if cache setup failed;
+	// subsequent producers still cannot acquire new pixels without admission.
+	const auto initialFallback = permitInitialImage && !mHasAcceptedImage &&
+		!mImageInputReserved && !mCapturePending && !mQuitPending && !mQuitAfterInput &&
+		!mCaptureHandler->isBusy() && !mImageAnnotator->rasterBackingEnabled() &&
+		!mImageAnnotator->canAcceptImage();
+	if (!canAcquireImage() && !initialFallback) {
+		return false;
+	}
+	mImageInputReserved = true;
+	if (!initialFallback && !mImageAnnotator->reserveImageInput()) {
+		mImageInputReserved = false;
+		return false;
+	}
+	if (checkReplacement && !mCaptureHandler->canTakeNew()) {
+		releaseImageInput();
+		return false;
+	}
+	refreshImageEnablements();
+	return true;
+}
+
+void MainWindow::releaseImageInput()
+{
+	mImageAnnotator->releaseImageInput();
+	mImageInputReserved = false;
+	refreshImageEnablements();
+	if (mQuitAfterInput) {
+		QTimer::singleShot(0, this, [this] {
+			mQuitAfterInput = false;
+			quit();
+		});
+	} else {
+		scheduleInputPump();
+	}
+}
+
+void MainWindow::scheduleInputPump()
+{
+	if (mInputPumpScheduled || (mPendingImageFiles.isEmpty() && !mDeferredScreenshot)) {
+		return;
+	}
+	mInputPumpScheduled = true;
+	QTimer::singleShot(0, this, [this] {
+		mInputPumpScheduled = false;
+		processNextImageInput();
+	});
+}
+
+void MainWindow::processNextImageInput()
+{
+	if (mDeferredScreenshot) {
+		if (!mCaptureHandler->isBusy()) {
+			auto capture = std::move(mDeferredScreenshot);
+			processScreenshotCapture(*capture);
+		}
+		return;
+	}
+	if (mPendingImageFiles.isEmpty() || !reserveImageInput(false)) {
+		return;
+	}
+	const auto input = mPendingImageFiles.dequeue();
+	if (input.withCapturePostProcessing) {
+		const QPixmap pixmap(input.path);
+		const CaptureFromFileDto capture(pixmap, input.path);
+		processCapture(capture, false);
+	} else {
+		LoadImageFromFileOperation operation(input.path, this, mNotificationService,
+			mDependencyInjector->get<IRecentImageService>(), mDependencyInjector->get<IFileService>(), mConfig);
+		operation.execute();
+	}
+	releaseImageInput();
+}
+
+void MainWindow::notifyImageInputBusy()
+{
+	NotifyOperation operation(tr("Screenshot input is busy"),
+		tr("Wait for the current capture or backing-storage operation to finish, then try again."),
+		NotificationTypes::Warning, mNotificationService, mConfig);
 	operation.execute();
 }
 
@@ -868,6 +1101,7 @@ void MainWindow::sessionFinished()
 void MainWindow::captureCanceled()
 {
 	mVisibilityHandler->restoreState();
+	releaseImageInput();
 }
 
 void MainWindow::uploadFinished(const UploadResult &result)
@@ -888,12 +1122,18 @@ void MainWindow::captureEmpty()
 
 void MainWindow::showPinWindow()
 {
+	if (!canUseCurrentImage()) {
+		return;
+	}
 	mPinWindowHandler->add(QPixmap::fromImage(mCaptureHandler->image()));
 }
 
 void MainWindow::actionTriggered(const Action &action)
 {
-	if(action.isCaptureEnabled() && !mCaptureHandler->canTakeNew()){
+	if (mActionProcessor->isActionInProgress()) {
+		return;
+	}
+	if(action.isCaptureEnabled() && !canAcquireImage()){
 		return;
 	}
 
@@ -916,5 +1156,8 @@ void MainWindow::showAfterAction(bool minimized)
 
 void MainWindow::showOcrWindow()
 {
+	if (!canUseCurrentImage()) {
+		return;
+	}
 	mOcrWindowHandler->add(QPixmap::fromImage(mCaptureHandler->image()));
 }

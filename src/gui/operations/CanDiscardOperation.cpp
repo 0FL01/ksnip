@@ -50,17 +50,11 @@ CanDiscardOperation::CanDiscardOperation(
 
 bool CanDiscardOperation::execute()
 {
-	if (mConfig->promptSaveBeforeExit() && mIsUnsaved) {
-		auto saveBeforeDiscardResponse = getSaveBeforeDiscard();
-
-		if (saveBeforeDiscardResponse == MessageBoxResponse::Yes) {
-			return saveImage();
-		} else if (saveBeforeDiscardResponse == MessageBoxResponse::Cancel) {
-			return false;
-		}
+	auto response = confirmDiscard(mIsUnsaved, mFilename, mMessageBoxService, mConfig);
+	if (response == MessageBoxResponse::Yes) {
+		return saveImage();
 	}
-
-	return true;
+	return response != MessageBoxResponse::Cancel;
 }
 
 bool CanDiscardOperation::saveImage() const
@@ -79,9 +73,13 @@ bool CanDiscardOperation::saveImage() const
 	return operation.execute(true).isSuccessful;
 }
 
-MessageBoxResponse CanDiscardOperation::getSaveBeforeDiscard() const
+MessageBoxResponse CanDiscardOperation::confirmDiscard(bool isUnsaved, const QString &filename,
+		const QSharedPointer<IMessageBoxService> &messageBoxService, const QSharedPointer<IConfig> &config)
 {
-	auto quote = mFilename.isEmpty() ? QString() : QLatin1String("\"");
-	return mMessageBoxService->yesNoCancel(tr("Warning - ") + QApplication::applicationName(),
-										  tr("The capture %1%2%3 has been modified.\nDo you want to save it?").arg(quote, mFilename, quote));
+	if (!isUnsaved || !config->promptSaveBeforeExit()) {
+		return MessageBoxResponse::No;
+	}
+	auto quote = filename.isEmpty() ? QString() : QLatin1String("\"");
+	return messageBoxService->yesNoCancel(tr("Warning - ") + QApplication::applicationName(),
+			tr("The capture %1%2%3 has been modified.\nDo you want to save it?").arg(quote, filename, quote));
 }

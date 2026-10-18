@@ -55,9 +55,7 @@ void SingleInstanceServerBootstrapper::processData(const QByteArray &data)
 		case SingleInstanceStartupModes::Edit:
             if(parameter.isImageAsByteArraySet()) {
                 mLogger->log(QLatin1String("Edit triggered with image received as byte array"));
-                QPixmap pixmap;
-                pixmap.loadFromData(parameter.imageAsByteArray);
-                mMainWindow->processCapture(CaptureDto(pixmap));
+				mMainWindow->openImageData(parameter.imageAsByteArray);
             } else {
                 mLogger->log(QLatin1String("Edit triggered with image received as image path"));
                 processImage(parameter.imagePath);
@@ -85,7 +83,5 @@ void SingleInstanceServerBootstrapper::show() const
 void SingleInstanceServerBootstrapper::processImage(const QString &imagePath)
 {
 	mLogger->log(QString("Single instance server was request to open image %1.").arg(imagePath));
-	QPixmap pixmap(imagePath);
-	auto captureDto = CaptureFromFileDto(pixmap, imagePath);
-	mMainWindow->processCapture(captureDto);
+	mMainWindow->openImageFile(imagePath, true);
 }

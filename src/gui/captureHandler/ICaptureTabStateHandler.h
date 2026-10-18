@@ -40,6 +40,10 @@ public:
 	virtual void renameFile(int index, const RenameResultDto &renameResult) = 0;
 	virtual int count() const = 0;
 	virtual int currentTabIndex() const = 0;
+	virtual quint64 documentId(int index) const = 0;
+	virtual quint64 revision(int index) const = 0;
+	virtual int indexForDocument(quint64 documentId) const = 0;
+	virtual bool setSaveStateIfRevision(quint64 documentId, quint64 revision, const SaveResultDto &saveResult) = 0;
 
 signals:
 	void updateTabInfo(int index, const QString &title, const QString &toolTip);

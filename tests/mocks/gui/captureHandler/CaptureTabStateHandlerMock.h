@@ -36,6 +36,10 @@ public:
 	MOCK_METHOD(void, renameFile, (int index, const RenameResultDto &renameResult), (override));
 	MOCK_METHOD(int, count, (), (const, override));
 	MOCK_METHOD(int, currentTabIndex, (), (const, override));
+	MOCK_METHOD(quint64, documentId, (int index), (const, override));
+	MOCK_METHOD(quint64, revision, (int index), (const, override));
+	MOCK_METHOD(int, indexForDocument, (quint64 documentId), (const, override));
+	MOCK_METHOD(bool, setSaveStateIfRevision, (quint64 documentId, quint64 revision, const SaveResultDto &saveResult), (override));
 
 	MOCK_METHOD(void, tabMoved, (int fromIndex, int toIndex), (override));
 	MOCK_METHOD(void, currentTabChanged, (int index), (override));

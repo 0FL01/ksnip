@@ -20,6 +20,9 @@
 #ifndef KSNIP_MULTICAPTUREHANDLER_H
 #define KSNIP_MULTICAPTUREHANDLER_H
 
+#include <QPointer>
+#include <algorithm>
+
 #include "src/gui/captureHandler/ICaptureHandler.h"
 #include "src/gui/captureHandler/ICaptureTabStateHandler.h"
 #include "src/gui/captureHandler/TabContextMenuAction.h"
@@ -55,8 +58,11 @@ public:
 			const QSharedPointer<IIconLoader> &iconLoader,
 			const QSharedPointer<IFileDialogService> &fileDialogService,
 			QWidget *parent);
-	~MultiCaptureHandler() override = default;
+	~MultiCaptureHandler() override;
 	bool canClose() override;
+	void requestClose(const std::function<void(bool)> &finished) override;
+	bool isBusy() const override;
+	void cancelPendingOperations() override;
 	bool canTakeNew() override;
 	bool isSaved() const override;
 	QString path() const override;
@@ -75,7 +81,24 @@ public:
 	void addListener(ICaptureChangeListener *captureChangeListener) override;
 
 private:
-	IImageAnnotator *mImageAnnotator;
+	enum class Command { None, Save, Copy, SaveAll, CloseTabs, Quit };
+	struct PendingCommand
+	{
+		Command command = Command::None;
+		QList<quint64> documents;
+		int next = 0;
+		quint64 serial = 0;
+		quint64 document = 0;
+		quint64 revision = 0;
+		quint64 request = 0;
+		bool isInstant = true;
+		bool showSuccessToast = true;
+		bool tabBatch = false;
+		bool successful = true;
+		std::function<void(bool)> finished;
+	};
+
+	QPointer<IImageAnnotator> mImageAnnotator;
 	QSharedPointer<ICaptureTabStateHandler> mTabStateHandler;
 	QSharedPointer<INotificationService> mNotificationService;
 	QWidget *mParent;
@@ -100,14 +123,28 @@ private:
 	TabContextMenuAction *mCopyToClipboardContextMenuAction;
 	TabContextMenuAction *mDeleteImageContextMenuAction;
 	QAction *mContextMenuSeparatorAction;
+	PendingCommand mPending;
+	quint64 mNextCommandId = 1;
+	quint64 mNextRequestId = 1;
 
 	bool discardChanges(int index);
 	void removeTab(int currentTabIndex);
-	void saveAt(int index, bool isInstant, bool showSuccessToast);
+	bool saveAt(int index, bool isInstant, bool showSuccessToast);
+	bool saveImageAt(int index, const QImage &image, bool isInstant, bool showSuccessToast);
+	bool startCommand(Command command, const QList<quint64> &documents, bool isInstant = true,
+			bool showSuccessToast = true, const std::function<void(bool)> &finished = {});
+	void processPending();
+	bool completeImageCommand(const QImage &image);
+	bool completeEntry(bool successful);
+	void finishCommand(bool successful);
+	bool pendingDocumentIsCurrentRevision() const;
+	void reportImageError(const QString &error);
 	void addTabContextMenuActions(const QSharedPointer<IIconLoader> &iconLoader);
 
 private slots:
 	void tabCloseRequested(int index);
+	void tabCloseBatchRequested(const QList<int> &indices);
+	void imageRequestFinished(quint64 requestId, const QImage &image, bool canceled, const QString &error);
 	void captureChanged();
 	void captureEmpty();
 	void annotatorConfigChanged();

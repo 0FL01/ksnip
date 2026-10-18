@@ -30,6 +30,7 @@
 #include <QList>
 #include <QUrl>
 #include <QDir>
+#include <functional>
 
 #include "IDragContentProvider.h"
 #include "src/common/helper/FileUrlHelper.h"
@@ -40,18 +41,22 @@ class DragAndDropProcessor : public QObject
 {
 	Q_OBJECT
 public:
-	explicit DragAndDropProcessor(IDragContentProvider *dragContentProvider, const QSharedPointer<ITempFileProvider> &tempFileProvider);
+	explicit DragAndDropProcessor(IDragContentProvider *dragContentProvider, const QSharedPointer<ITempFileProvider> &tempFileProvider,
+		const std::function<bool()> &canReceiveImage = std::function<bool()>());
 	~DragAndDropProcessor() override = default;
 	bool eventFilter(QObject *object, QEvent *event) override;
 
 signals:
 	void fileDropped(const QString &path);
 	void imageDropped(const QPixmap &pixmap);
+	void temporaryFileDropped(const QString &path);
+	void imageInputRejected();
 
 private:
 	IDragContentProvider *mDragContentProvider;
     QSharedPointer<ITempFileProvider> mTempFileProvider;
 	QPoint mDragStartPosition;
+	std::function<bool()> mCanReceiveImage;
 
 	static bool handleDragEnter(QDragEnterEvent *event);
 	static bool handleDragEnter(QGraphicsSceneDragDropEvent *event);
@@ -64,7 +69,7 @@ private:
 	bool isMinDragDistanceReached(const QMouseEvent *event) const;
 	void createDrag(const DragContent &dragContent);
 	QString getPathToDraggedImage(const DragContent &dragContent);
-	void processDroppedImagePaths(const QStringList &paths);
+	bool processDroppedImagePaths(const QStringList &paths);
 };
 
 #endif //KSNIP_DRAGANDDROPPROCESSOR_H

@@ -21,6 +21,7 @@
 #define KSNIP_ICAPTUREHANDLER_H
 
 #include <QObject>
+#include <functional>
 #include "src/gui/captureHandler/ICaptureChangeListener.h"
 #include "src/common/dtos/CaptureDto.h"
 
@@ -30,6 +31,9 @@ public:
 	explicit ICaptureHandler() = default;
 	~ICaptureHandler() override = default;
 	virtual bool canClose() = 0;
+	virtual void requestClose(const std::function<void(bool)> &finished) { finished(canClose()); }
+	virtual bool isBusy() const { return false; }
+	virtual void cancelPendingOperations() {}
 	virtual bool canTakeNew() = 0;
 	virtual bool isSaved() const = 0;
 	virtual QString path() const = 0;

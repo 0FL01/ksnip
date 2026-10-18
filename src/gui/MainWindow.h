@@ -24,6 +24,8 @@
 #include <QtWidgets>
 
 #include <functional>
+#include <memory>
+#include <QQueue>
 
 #include "src/gui/actions/ActionProcessor.h"
 #include "src/gui/actions/ActionsMenu.h"
@@ -80,6 +82,8 @@ public:
     void showDefault();
 	void showEditor();
     void captureScreenshot(CaptureModes captureMode, bool captureCursor, int delay);
+	void openImageFile(const QString &path, bool withCapturePostProcessing = false);
+	void openImageData(const QByteArray &data);
 	void resizeToContent() override;
 	bool isWindowMaximized() override;
 	void processImage(const CaptureDto &capture) override;
@@ -110,6 +114,18 @@ private:
 	bool mResizeOnNormalize;
 	bool mHideEditorAfterCaptureEnabled;
 	bool mCapturePending;
+	bool mImageInputReserved{false};
+	bool mHasCapture{false};
+	bool mHasAcceptedImage{false};
+	bool mInputPumpScheduled{false};
+	bool mQuitPending{false};
+	bool mQuitAfterInput{false};
+	struct PendingImageFile {
+		QString path;
+		bool withCapturePostProcessing;
+	};
+	QQueue<PendingImageFile> mPendingImageFiles;
+	std::unique_ptr<CaptureDto> mDeferredScreenshot;
 	QAction *mSaveAsAction;
 	QAction *mSaveAllAction;
 	QAction *mUploadAction;
@@ -163,6 +179,14 @@ private:
 #endif
 
     void setEnablements(bool enabled);
+	void refreshImageEnablements();
+	bool canAcquireImage() const;
+	bool reserveImageInput(bool checkReplacement, bool permitInitialImage = false);
+	void releaseImageInput();
+	void scheduleInputPump();
+	void processNextImageInput();
+	void notifyImageInputBusy();
+	bool canUseCurrentImage() const;
     void loadSettings();
     void triggerCapture(CaptureModes captureMode);
     void capture(CaptureModes captureMode, bool captureCursor, int delay);
@@ -199,6 +223,7 @@ private slots:
 	void capturePostProcessing(bool hideEditor);
 	void processScreenshotCapture(const CaptureDto &capture);
 	void loadImageFromFile(const QString &path);
+	void loadTemporaryImageFile(const QString &path);
 	void loadImageFromPixmap(const QPixmap &pixmap);
 	void sessionFinished();
 	void captureCanceled();

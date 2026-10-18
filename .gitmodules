@@ -1,6 +1,7 @@
 [submodule "libraries/kImageAnnotator"]
 	path = libraries/kImageAnnotator
-	url = https://github.com/ksnip/kImageAnnotator.git
+	url = https://github.com/0FL01/ksnip.git
+	branch = kimageannotator-raster-cache
 [submodule "libraries/kColorPicker"]
 	path = libraries/kColorPicker
 	url = https://github.com/ksnip/kColorPicker.git

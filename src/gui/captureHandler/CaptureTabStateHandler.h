@@ -45,6 +45,10 @@ public:
 	void renameFile(int index, const RenameResultDto &renameResult) override;
 	int count() const override;
 	int currentTabIndex() const override;
+	quint64 documentId(int index) const override;
+	quint64 revision(int index) const override;
+	int indexForDocument(quint64 documentId) const override;
+	bool setSaveStateIfRevision(quint64 documentId, quint64 revision, const SaveResultDto &saveResult) override;
 
 public slots:
 	void tabMoved(int fromIndex, int toIndex) override;
@@ -54,10 +58,11 @@ public slots:
 
 private:
 	int mCurrentTabIndex;
+	quint64 mNextDocumentId;
 	QList<QSharedPointer<CaptureTabState>> mCaptureTabStates;
 
 	void refreshTabInfo(int index);
-	QSharedPointer<CaptureTabState> getTabState(int index);
+	QSharedPointer<CaptureTabState> getTabState(int index) const;
 };
 
 #endif //KSNIP_CAPTURETABSTATEHANDLER_H

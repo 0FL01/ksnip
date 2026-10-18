@@ -48,6 +48,17 @@ public:
 	void close() override;
 	bool isVisible() const override;
 	QWidget* widget() const override;
+	bool enableRasterBacking(const QString &directory = QString()) override;
+	bool rasterBackingEnabled() const override;
+	bool isCurrentImageReady() const override;
+	bool canAcceptImage() const override;
+	bool reserveImageInput() override;
+	void releaseImageInput() override;
+	void closeRasterBacking(const std::function<void()> &finished) override;
+	void requestImageAt(int index, quint64 requestId) override;
+	void cancelImageRequest(quint64 requestId) override;
+	void beginTabBatch() override;
+	void endTabBatch() override;
 
 public slots:
 	void loadImage(const QPixmap &pixmap) override;
@@ -69,6 +80,8 @@ public slots:
 
 private:
 	KImageAnnotator *mKImageAnnotator;
+	bool mBackingInitializationFailed{false};
+	std::function<void()> mBackingCloseFinished;
 };
 
 #endif //KSNIP_KIMAGEANNOTATORADAPTER_H

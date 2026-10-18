@@ -102,6 +102,15 @@ bash .github/scripts/linux/rpm/build-ocr-dependencies.sh \
     -DBUILD_NUMBER=%{commit}
 %cmake_build
 
+# The application deliberately disables bundled-library BUILD_TESTS. Exercise
+# the pinned editor sources separately, rather than silently skipping paging.
+cmake --install %{_vpath_builddir}/kColorPicker --prefix "$PWD/kimageannotator-dependencies"
+cmake -S libraries/kImageAnnotator -B kimageannotator-tests -G Ninja \
+    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+    -DBUILD_WITH_QT6=ON -DBUILD_TESTS=ON -DBUILD_EXAMPLE=OFF -DBUILD_SHARED_LIBS=OFF \
+    -DCMAKE_PREFIX_PATH:PATH="$PWD/kimageannotator-dependencies"
+cmake --build kimageannotator-tests --parallel %{?_smp_build_ncpus}
+
 %install
 %cmake_install
 
@@ -132,7 +141,11 @@ cp -a src/gui/ocr/licenses/. \
 QT_QPA_PLATFORM=offscreen ctest \
     --test-dir %{_vpath_builddir} \
     --output-on-failure \
+    --no-tests=error \
     -j1
+QT_QPA_PLATFORM=offscreen ctest \
+    --test-dir kimageannotator-tests/tests \
+    --output-on-failure --no-tests=error -j1
 desktop-file-validate \
     %{buildroot}%{_datadir}/applications/org.ksnip.ksnip.desktop
 appstreamcli validate --no-net \

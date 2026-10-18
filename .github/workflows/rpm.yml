@@ -13,6 +13,58 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  compatibility:
+    name: Qt ${{ matrix.qt }} (${{ matrix.library }} editor)
+    runs-on: ubuntu-24.04
+    container:
+      image: fedora:44
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - qt: 5
+            library: bundled
+          - qt: 6
+            library: system
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Install compatibility build dependencies
+        run: |
+          set -euo pipefail
+          dnf install -y cmake gcc-c++ git-core ninja-build extra-cmake-modules libX11-devel libxcb-devel
+          qt=${{ matrix.qt }}
+          dnf install -y "cmake(Qt${qt}Widgets)" "cmake(Qt${qt}Network)" \
+            "cmake(Qt${qt}Xml)" "cmake(Qt${qt}PrintSupport)" "cmake(Qt${qt}Svg)" \
+            "cmake(Qt${qt}DBus)" "cmake(Qt${qt}LinguistTools)"
+          if [ "$qt" = 5 ]; then
+            dnf install -y 'cmake(Qt5X11Extras)'
+          else
+            dnf install -y 'cmake(Qt6GuiPrivate)' 'cmake(Qt6Concurrent)' \
+              'cmake(kImageAnnotator-Qt6)' 'cmake(kColorPicker-Qt6)'
+          fi
+      - name: Checkout pinned source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - name: Compile compatibility path
+        run: |
+          set -euo pipefail
+          qt6=OFF
+          bundled=ON
+          if [ '${{ matrix.qt }}' = 6 ]; then
+            qt6=ON
+            bundled=OFF
+          fi
+          cmake -S . -B build-compatibility -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release -DBUILD_WITH_QT6="$qt6" -DBUILD_TESTS=OFF \
+            -DUSE_SUBMODULE_KCOLORPICKER="$bundled" -DUSE_SUBMODULE_KIMAGEANNOTATOR="$bundled"
+          cmake --build build-compatibility --target ksnip --parallel 4
+
   rpm:
     runs-on: ubuntu-24.04
     container:

@@ -20,15 +20,22 @@
 #ifndef KSNIP_CAPTURETABSTATE_H
 #define KSNIP_CAPTURETABSTATE_H
 
+#include <QString>
+#include <QtGlobal>
+
 struct CaptureTabState
 {
 	int index;
+	quint64 documentId;
+	quint64 revision;
 	QString path;
 	QString filename;
 	bool isSaved;
 
-	explicit CaptureTabState(int index, const QString &filename, const QString &path, bool isSave) {
+	explicit CaptureTabState(int index, quint64 documentId, const QString &filename, const QString &path, bool isSave) {
 		this->index = index;
+		this->documentId = documentId;
+		this->revision = 0;
 		this->filename = filename;
 		this->path = path;
 		this->isSaved = isSave;

@@ -48,6 +48,8 @@ public:
 						QWidget *parent);
 	~CanDiscardOperation() override = default;
 	bool execute();
+	static MessageBoxResponse confirmDiscard(bool isUnsaved, const QString &filename,
+			const QSharedPointer<IMessageBoxService> &messageBoxService, const QSharedPointer<IConfig> &config);
 
 private:
 	QSharedPointer<IConfig> mConfig;
@@ -63,7 +65,6 @@ private:
 	QSharedPointer<ISavePathProvider> mSavePathProvider;
 	QSharedPointer<IFileDialogService> mFileDialogService;
 
-	MessageBoxResponse getSaveBeforeDiscard() const;
 	bool saveImage() const;
 };
 

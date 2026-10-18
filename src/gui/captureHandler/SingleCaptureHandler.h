@@ -20,6 +20,8 @@
 #ifndef KSNIP_SINGLECAPTUREHANDLER_H
 #define KSNIP_SINGLECAPTUREHANDLER_H
 
+#include <QPointer>
+
 #include "src/gui/captureHandler/ICaptureHandler.h"
 #include "src/gui/operations/CanDiscardOperation.h"
 #include "src/gui/operations/DeleteImageOperation.h"
@@ -82,6 +84,7 @@ private:
 	QWidget *mParent;
 	ICaptureChangeListener *mCaptureChangeListener;
 	bool mIsSaved;
+	quint64 mRevision = 0;
 	QString mPath;
 	PathFromCaptureProvider mPathFromCaptureProvider;
 
@@ -90,7 +93,7 @@ private:
 private slots:
 	void captureChanged();
 	void captureEmpty();
-	void innerSave(bool isInstant, bool showSuccessToast);
+	bool innerSave(bool isInstant, bool showSuccessToast);
 	void markUnsaved();
 	void reset();
 };

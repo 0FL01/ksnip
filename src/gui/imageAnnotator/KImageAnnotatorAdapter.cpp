@@ -27,6 +27,18 @@ KImageAnnotatorAdapter::KImageAnnotatorAdapter() :
 	connect(mKImageAnnotator, &KImageAnnotator::tabCloseRequested, this, &KImageAnnotatorAdapter::tabCloseRequested);
 	connect(mKImageAnnotator, &KImageAnnotator::tabMoved, this, &KImageAnnotatorAdapter::tabMoved);
 	connect(mKImageAnnotator, &KImageAnnotator::tabContextMenuOpened, this, &KImageAnnotatorAdapter::tabContextMenuOpened);
+#ifdef KIMAGEANNOTATOR_HAS_RASTER_BACKING
+	connect(mKImageAnnotator, &KImageAnnotator::currentImageReadyChanged, this, &IImageAnnotator::currentImageReadyChanged);
+	connect(mKImageAnnotator, &KImageAnnotator::imageAdmissionChanged, this, &IImageAnnotator::imageAdmissionChanged);
+	connect(mKImageAnnotator, &KImageAnnotator::imageRequestFinished, this, &IImageAnnotator::imageRequestFinished);
+	connect(mKImageAnnotator, &KImageAnnotator::rasterBackingError, this, &IImageAnnotator::rasterBackingError);
+	connect(mKImageAnnotator, &KImageAnnotator::tabCloseBatchRequested, this, &IImageAnnotator::tabCloseBatchRequested);
+	connect(mKImageAnnotator, &KImageAnnotator::rasterBackingClosed, this, [this]() {
+		std::function<void()> finished;
+		finished.swap(mBackingCloseFinished);
+		if (finished) { finished(); }
+	});
+#endif
 }
 
 KImageAnnotatorAdapter::~KImageAnnotatorAdapter()
@@ -42,6 +54,104 @@ QImage KImageAnnotatorAdapter::image() const
 QImage KImageAnnotatorAdapter::imageAt(int index) const
 {
 	return mKImageAnnotator->imageAt(index);
+}
+
+bool KImageAnnotatorAdapter::enableRasterBacking(const QString &directory)
+{
+#ifdef KIMAGEANNOTATOR_HAS_RASTER_BACKING
+	mBackingInitializationFailed = !mKImageAnnotator->enableRasterBacking(directory);
+	return !mBackingInitializationFailed;
+#else
+	Q_UNUSED(directory)
+	return false;
+#endif
+}
+
+bool KImageAnnotatorAdapter::rasterBackingEnabled() const
+{
+#ifdef KIMAGEANNOTATOR_HAS_RASTER_BACKING
+	return mKImageAnnotator->rasterBackingEnabled();
+#else
+	return false;
+#endif
+}
+
+bool KImageAnnotatorAdapter::isCurrentImageReady() const
+{
+#ifdef KIMAGEANNOTATOR_HAS_RASTER_BACKING
+	return mKImageAnnotator->isCurrentImageReady();
+#else
+	return true;
+#endif
+}
+
+bool KImageAnnotatorAdapter::canAcceptImage() const
+{
+#ifdef KIMAGEANNOTATOR_HAS_RASTER_BACKING
+	return !mBackingInitializationFailed && mKImageAnnotator->canAcceptImage();
+#else
+	return true;
+#endif
+}
+
+bool KImageAnnotatorAdapter::reserveImageInput()
+{
+#ifdef KIMAGEANNOTATOR_HAS_RASTER_BACKING
+	return !mBackingInitializationFailed && mKImageAnnotator->reserveImageInput();
+#else
+	return true;
+#endif
+}
+
+void KImageAnnotatorAdapter::releaseImageInput()
+{
+#ifdef KIMAGEANNOTATOR_HAS_RASTER_BACKING
+	mKImageAnnotator->releaseImageInput();
+#endif
+}
+
+void KImageAnnotatorAdapter::requestImageAt(int index, quint64 requestId)
+{
+#ifdef KIMAGEANNOTATOR_HAS_RASTER_BACKING
+	mKImageAnnotator->requestImageAt(index, requestId);
+#else
+	IImageAnnotator::requestImageAt(index, requestId);
+#endif
+}
+
+void KImageAnnotatorAdapter::closeRasterBacking(const std::function<void()> &finished)
+{
+#ifdef KIMAGEANNOTATOR_HAS_RASTER_BACKING
+	if (rasterBackingEnabled()) {
+		mBackingCloseFinished = finished;
+		mKImageAnnotator->closeRasterBacking();
+		return;
+	}
+#endif
+	IImageAnnotator::closeRasterBacking(finished);
+}
+
+void KImageAnnotatorAdapter::cancelImageRequest(quint64 requestId)
+{
+#ifdef KIMAGEANNOTATOR_HAS_RASTER_BACKING
+	mKImageAnnotator->cancelImageRequest(requestId);
+#else
+	Q_UNUSED(requestId)
+#endif
+}
+
+void KImageAnnotatorAdapter::beginTabBatch()
+{
+#ifdef KIMAGEANNOTATOR_HAS_RASTER_BACKING
+	mKImageAnnotator->beginTabBatch();
+#endif
+}
+
+void KImageAnnotatorAdapter::endTabBatch()
+{
+#ifdef KIMAGEANNOTATOR_HAS_RASTER_BACKING
+	mKImageAnnotator->endTabBatch();
+#endif
 }
 
 QAction *KImageAnnotatorAdapter::undoAction()

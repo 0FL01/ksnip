@@ -13,6 +13,13 @@ for submodule in "${SUBMODULES[@]}"; do
     git submodule update --init --recursive "${submodule}"
   fi
 
+  if [[ "${submodule}" == "libraries/kImageAnnotator" ]]; then
+    # This remote also contains application tags. The modified editor must use
+    # the superproject's pinned library commit, never the latest application tag.
+    echo "Keeping ${submodule} at the pinned editor revision"
+    continue
+  fi
+
   echo "Fetching tags for ${submodule}"
   git -C "${submodule}" fetch --tags --force
 

@@ -19,9 +19,11 @@
 
 #include "DragAndDropProcessor.h"
 
-DragAndDropProcessor::DragAndDropProcessor(IDragContentProvider *dragContentProvider, const QSharedPointer<ITempFileProvider> &tempFileProvider) :
+DragAndDropProcessor::DragAndDropProcessor(IDragContentProvider *dragContentProvider, const QSharedPointer<ITempFileProvider> &tempFileProvider,
+	const std::function<bool()> &canReceiveImage) :
 	mDragContentProvider(dragContentProvider),
-    mTempFileProvider(tempFileProvider)
+	mTempFileProvider(tempFileProvider),
+	mCanReceiveImage(canReceiveImage)
 {
 
 }
@@ -65,18 +67,22 @@ bool DragAndDropProcessor::handleDragEnter(QGraphicsSceneDragDropEvent *event)
 bool DragAndDropProcessor::handleDrop(QDropEvent *event)
 {
 	auto paths = getUrlsFromMimeData(event->mimeData());
-	processDroppedImagePaths(paths);
-
-	event->acceptProposedAction();
+	if (processDroppedImagePaths(paths)) {
+		event->acceptProposedAction();
+	} else {
+		event->ignore();
+	}
 	return true;
 }
 
 bool DragAndDropProcessor::handleDrop(QGraphicsSceneDragDropEvent *event)
 {
 	auto paths = getUrlsFromMimeData(event->mimeData());
-	processDroppedImagePaths(paths);
-
-	event->acceptProposedAction();
+	if (processDroppedImagePaths(paths)) {
+		event->acceptProposedAction();
+	} else {
+		event->ignore();
+	}
 	return true;
 }
 
@@ -150,13 +156,22 @@ QString DragAndDropProcessor::getPathToDraggedImage(const DragContent &dragConte
 	return imagePath;
 }
 
-void DragAndDropProcessor::processDroppedImagePaths(const QStringList &paths)
+bool DragAndDropProcessor::processDroppedImagePaths(const QStringList &paths)
 {
+	bool accepted = true;
 	for(const auto& path: paths) {
 		if (PathHelper::isTempDirectory(path)) {
-			emit imageDropped(QPixmap(path));
+			if (!mCanReceiveImage) {
+				emit imageDropped(QPixmap(path));
+			} else if (mCanReceiveImage()) {
+				emit temporaryFileDropped(path);
+			} else {
+				accepted = false;
+				emit imageInputRejected();
+			}
 		} else {
 			emit fileDropped(path);
 		}
 	}
+	return accepted;
 }

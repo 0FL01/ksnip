@@ -21,6 +21,10 @@
 #define KSNIP_IIMAGEANNOTATOR_H
 
 #include <QObject>
+#include <QImage>
+#include <QList>
+#include <QTimer>
+#include <functional>
 
 class QAction;
 
@@ -46,6 +50,28 @@ public:
 	virtual void close() = 0;
 	virtual bool isVisible() const = 0;
 	virtual QWidget* widget() const = 0;
+	// Optional backing support. Older annotators retain the synchronous API.
+	virtual bool enableRasterBacking(const QString &directory = QString()) { Q_UNUSED(directory) return false; }
+	virtual bool rasterBackingEnabled() const { return false; }
+	virtual bool isCurrentImageReady() const { return true; }
+	virtual bool canAcceptImage() const { return true; }
+	virtual bool reserveImageInput() { return canAcceptImage(); }
+	virtual void releaseImageInput() {}
+	virtual void closeRasterBacking(const std::function<void()> &finished)
+	{
+		QTimer::singleShot(0, this, [finished]() { if (finished) { finished(); } });
+	}
+	virtual void requestImageAt(int index, quint64 requestId)
+	{
+		const auto result = imageAt(index);
+		QTimer::singleShot(0, this, [this, requestId, result] {
+			emit imageRequestFinished(requestId, result, false,
+				result.isNull() ? tr("The image is not available.") : QString());
+		});
+	}
+	virtual void cancelImageRequest(quint64 requestId) { Q_UNUSED(requestId) }
+	virtual void beginTabBatch() {}
+	virtual void endTabBatch() {}
 
 public slots:
 	virtual void loadImage(const QPixmap &pixmap) = 0;
@@ -71,6 +97,11 @@ signals:
 	void tabCloseRequested(int index) const;
 	void tabMoved(int fromIndex, int toIndex);
 	void tabContextMenuOpened(int index) const;
+	void currentImageReadyChanged(bool ready);
+	void imageAdmissionChanged(bool allowed);
+	void imageRequestFinished(quint64 requestId, const QImage &image, bool canceled, const QString &error);
+	void rasterBackingError(const QString &message);
+	void tabCloseBatchRequested(const QList<int> &indices);
 };
 
 

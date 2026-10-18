@@ -104,6 +104,9 @@ void SingleCaptureHandler::rename()
 
 void SingleCaptureHandler::copy()
 {
+	if (!mImageAnnotator->isCurrentImageReady()) {
+		return;
+	}
 	auto image = mImageAnnotator->image();
 	mClipboard->setImage(image);
 }
@@ -128,6 +131,7 @@ void SingleCaptureHandler::removeImage()
 
 void SingleCaptureHandler::reset()
 {
+	++mRevision;
 	mImageAnnotator->hide();
 	mPath = QString();
 	mIsSaved = true;
@@ -135,8 +139,13 @@ void SingleCaptureHandler::reset()
 	captureChanged();
 }
 
-void SingleCaptureHandler::innerSave(bool isInstant, bool showSuccessToast)
+bool SingleCaptureHandler::innerSave(bool isInstant, bool showSuccessToast)
 {
+	if (!mImageAnnotator->isCurrentImageReady()) {
+		return false;
+	}
+	auto revision = mRevision;
+	QPointer<SingleCaptureHandler> guard(this);
 	auto image = mImageAnnotator->image();
 	SaveOperation operation(
 			image,
@@ -150,15 +159,18 @@ void SingleCaptureHandler::innerSave(bool isInstant, bool showSuccessToast)
 			mConfig,
 			mParent);
 	auto saveResult = operation.execute(showSuccessToast);
-	mIsSaved = saveResult.isSuccessful;
-	if (mIsSaved) {
+	if (guard && revision == mRevision && saveResult.isSuccessful) {
+		mIsSaved = true;
 		mPath =  saveResult.path;
 		captureChanged();
+		return guard && revision == mRevision && mIsSaved;
 	}
+	return false;
 }
 
 void SingleCaptureHandler::load(const CaptureDto &capture)
 {
+	++mRevision;
 	mPath = mPathFromCaptureProvider.pathFrom(capture);
 	mIsSaved = PathHelper::isPathValid(mPath);
 	mImageAnnotator->loadImage(capture.screenshot);
@@ -169,11 +181,17 @@ void SingleCaptureHandler::load(const CaptureDto &capture)
 
 QImage SingleCaptureHandler::image() const
 {
+	if (!mImageAnnotator->isCurrentImageReady()) {
+		return {};
+	}
 	return mImageAnnotator->image();
 }
 
 void SingleCaptureHandler::insertImageItem(const QPointF &pos, const QPixmap &pixmap)
 {
+	if (!mImageAnnotator->isCurrentImageReady()) {
+		return;
+	}
 	mImageAnnotator->insertImageItem(pos, pixmap);
 }
 
@@ -184,22 +202,17 @@ void SingleCaptureHandler::addListener(ICaptureChangeListener *captureChangeList
 
 bool SingleCaptureHandler::discardChanges()
 {
-	auto image = mImageAnnotator->image();
 	auto filename = PathHelper::extractFilename(mPath);
-	CanDiscardOperation operation(
-			image,
-			!mIsSaved,
-			mPath,
-			filename,
-			mNotificationService,
-			mRecentImageService,
-			mMessageBoxService,
-			mImageSaver,
-			mSavePathProvider,
-			mFileDialogService,
-			mConfig,
-			mParent);
-	return operation.execute();
+	auto revision = mRevision;
+	QPointer<SingleCaptureHandler> guard(this);
+	auto response = CanDiscardOperation::confirmDiscard(!mIsSaved, filename, mMessageBoxService, mConfig);
+	if (!guard || revision != mRevision) {
+		return false;
+	}
+	if (response == MessageBoxResponse::Yes) {
+		return innerSave(true, true);
+	}
+	return response != MessageBoxResponse::Cancel;
 }
 
 void SingleCaptureHandler::captureChanged()
@@ -218,6 +231,7 @@ void SingleCaptureHandler::captureEmpty()
 
 void SingleCaptureHandler::markUnsaved()
 {
+	++mRevision;
 	mIsSaved = false;
 	captureChanged();
 }

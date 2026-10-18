@@ -4,7 +4,26 @@ Status: active
 Source: `00_PRIMARY_GOAL.md`, `02_MVP_SCOPE.md`, `03_MINIMAL_DESIGN.md`,
 `05_ACCEPTANCE_CRITERIA.md`, and `tasks/T00_BASELINE.md` through
 `tasks/T06_OFFLINE_OCR.md`
-Last updated: 2026-10-07
+Last updated: 2026-10-18
+
+## Current follow-up: disk-backed open tabs
+
+The user approved implementation of disk backing/deduplication for approximately
+100 open screenshot tabs, followed by commit/push and a successful GitHub Actions
+build. The frozen follow-up contract and current checkpoint are in
+`docs/goals/2026-10-18-disk-backed-captures.md`. This does not change or claim new
+live acceptance of the Wayland/OCR outcomes below. The existing running KSnip is
+not restarted or manipulated. Local compiler work is limited to four cores/jobs
+with lowered scheduling priority.
+
+The final local Qt 6 editor and application builds pass with `nice -n 10 taskset
+-c 0-3` and `--parallel 4`; offscreen CTest passes 51/51 editor and 21/21 app
+executables. A controlled isolated-editor experiment with 100 distinct 1080p
+images measures PSS 826.7 MiB without backing versus 66.7 MiB with backing;
+100 identical inputs share one 7.91 MiB disk blob. These are not measurements of
+the user's full running KSnip. Library commit `ac73599e` is published; root
+push/Actions verification is pending. Exact follow-up evidence is in the linked
+goal document, not in the older Wayland/OCR outcome statuses.
 
 ## Objective
 

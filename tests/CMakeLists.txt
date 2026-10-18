@@ -11,7 +11,10 @@ set(UNITTEST_SRC
 	${CMAKE_CURRENT_SOURCE_DIR}/gui/actions/ActionTests.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/gui/actions/ActionProcessorTests.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/gui/captureHandler/MultiCaptureHandlerTests.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/gui/captureHandler/RasterCaptureHandlerTests.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/gui/captureHandler/SingleCaptureHandlerTests.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/gui/dragAndDrop/DragAndDropProcessorTests.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/gui/imageAnnotator/KImageAnnotatorAdapterTests.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/gui/operations/DeleteImageOperationTests.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/gui/operations/LoadImageFromFileOperationTests.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/gui/operations/SaveOperationTests.cpp
