@@ -31,6 +31,8 @@ set(UNITTEST_SRC
 	annotations/misc/AnnotationItemClipboardTest.cpp
 	annotations/misc/NumberManagerTest.cpp
 	backend/ConfigTest.cpp
+	backend/RasterStoreTest.cpp
+	gui/annotator/tabs/RasterPagingTest.cpp
 	common/helper/KeyHelperTest.cpp
 	common/helper/MathHelperTest.cpp
 	common/helper/ItemHelperTest.cpp
@@ -66,7 +68,9 @@ set(TESTUTILS_SRC
 	mocks/MockSelectionRestrictor.cpp
 	)
 
-add_library(KIMAGEANNOTATOR_STATIC STATIC ${KIMAGEANNOTATOR_SRCS})
+add_library(KIMAGEANNOTATOR_STATIC STATIC ${KIMAGEANNOTATOR_SRCS}
+		${CMAKE_CURRENT_SOURCE_DIR}/../include/kImageAnnotator/KImageAnnotator.h
+		${CMAKE_CURRENT_SOURCE_DIR}/../resources/kImageAnnotator_resources.qrc)
 
 target_link_libraries(KIMAGEANNOTATOR_STATIC
 		Qt${QT_MAJOR_VERSION}::Widgets
@@ -90,4 +94,5 @@ foreach (UnitTest ${UNITTEST_SRC})
 	add_executable(${UnitTestName} ${UnitTest} ${TESTUTILS_SRC})
 	target_link_libraries(${UnitTestName} KIMAGEANNOTATOR_STATIC GTest::gmock Qt${QT_MAJOR_VERSION}::Test)
 	add_test(${UnitTestName} ${UnitTestName})
+	set_tests_properties(${UnitTestName} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endforeach (UnitTest)

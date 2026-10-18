@@ -37,8 +37,8 @@ public:
 
 private:
 	AnnotationArea *mAnnotationArea;
-	QPixmap mOriginalImage;
-	QPixmap mCutImage;
+	RasterImage mOriginalImage;
+	RasterImage mCutImage;
 	QGraphicsPixmapItem *mBackgroundImage;
 
 	bool isVerticalCut(const QRectF &cutOutRect, const QRectF &imageRect) const;

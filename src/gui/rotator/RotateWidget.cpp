@@ -61,6 +61,7 @@ void RotateWidget::showDialog()
 
 void RotateWidget::rotate(qreal angel)
 {
+	if (!mView->scene()) { return; }
 	Q_ASSERT(mAnnotationArea != nullptr);
 
 	mAnnotationArea->rotate(angel);
@@ -68,6 +69,7 @@ void RotateWidget::rotate(qreal angel)
 
 void RotateWidget::flip(FlipDirection direction)
 {
+	if (!mView->scene()) { return; }
 	Q_ASSERT(mAnnotationArea != nullptr);
 
 	mAnnotationArea->flip(direction);

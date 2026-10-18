@@ -21,8 +21,12 @@
 #define KIMAGEANNOTATOR_KIMAGEANNOTATOR_H
 
 #include <QWidget>
+#include <QImage>
+#include <QList>
 
 #include <kImageAnnotator/KImageAnnotatorExport.h>
+
+#define KIMAGEANNOTATOR_HAS_RASTER_BACKING 1
 
 namespace kImageAnnotator {
 
@@ -41,6 +45,22 @@ public:
 	~KImageAnnotator() override;
 	QImage image() const;
 	QImage imageAt(int index) const;
+	// Opt-in, before opening documents. The default retains legacy semantics.
+	bool enableRasterBacking(const QString &directory = QString());
+	bool rasterBackingEnabled() const;
+	bool isCurrentImageReady() const;
+	bool canAcceptImage() const;
+	// Reserve before acquiring pixels. One admitted image remains acceptable if
+	// persistence fails while an asynchronous capture is in flight.
+	bool reserveImageInput();
+	void releaseImageInput();
+	void closeRasterBacking();
+	// Resolve the tab now; completion (also a cache hit/error/cancel) is queued.
+	// Request IDs must be unique until their terminal signal is delivered.
+	void requestImageAt(int index, quint64 requestId);
+	void cancelImageRequest(quint64 requestId);
+	void beginTabBatch();
+	void endTabBatch();
 	QAction *undoAction();
 	QAction *redoAction();
 	QSize sizeHint() const override;
@@ -79,6 +99,12 @@ Q_SIGNALS:
 	void tabCloseRequested(int index) const;
 	void tabMoved(int fromIndex, int toIndex);
 	void tabContextMenuOpened(int index) const;
+	void currentImageReadyChanged(bool ready);
+	void imageAdmissionChanged(bool allowed);
+	void imageRequestFinished(quint64 requestId, const QImage &image, bool canceled, const QString &error);
+	void rasterBackingError(const QString &message);
+	void rasterBackingClosed();
+	void tabCloseBatchRequested(const QList<int> &indices);
 
 private:
 	QScopedPointer<KImageAnnotatorPrivate> const d_ptr;

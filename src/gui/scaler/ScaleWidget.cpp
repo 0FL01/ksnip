@@ -61,6 +61,7 @@ void ScaleWidget::showDialog()
 
 void ScaleWidget::scale(const QSize &newSize)
 {
+	if (!mView->scene()) { return; }
 	mAnnotationArea->scale(newSize);
 }
 

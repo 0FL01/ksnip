@@ -24,21 +24,22 @@
 #include <QGraphicsPixmapItem>
 
 #include "src/common/enum/FlipDirection.h"
+#include "src/backend/RasterStore.h"
 
 namespace kImageAnnotator {
 
 class FlipCommand : public QUndoCommand
 {
 public:
-	FlipCommand(QGraphicsPixmapItem *backgroundImage, FlipDirection direction);
+	FlipCommand(QGraphicsPixmapItem *backgroundImage, FlipDirection direction, RasterDocument *document = nullptr);
 	~FlipCommand() override = default;
 	void undo() override;
 	void redo() override;
 
 private:
 	QGraphicsPixmapItem *mBackgroundImage;
-	QPixmap mOldPixmap;
-	QPixmap mNewPixmap;
+	RasterImage mOldPixmap;
+	RasterImage mNewPixmap;
 
 	static QPixmap flipPixmap(const QPixmap &sourcePixmap, FlipDirection direction);
 };

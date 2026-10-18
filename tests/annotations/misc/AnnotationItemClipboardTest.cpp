@@ -37,7 +37,10 @@ void AnnotationItemClipboardTest::TestCopyItems_Should_StoreSelectedItems()
 	clipboard.copyItems(QPointF(), &modifier);
 
 	QCOMPARE(clipboard.copiedItemsWithOffset().count(), 1);
-	QCOMPARE(clipboard.copiedItemsWithOffset().keys().first(), &rect);
+	auto snapshot = clipboard.copiedItemsWithOffset().keys().first();
+	QVERIFY(snapshot != &rect);
+	QCOMPARE(snapshot->position(), rect.position());
+	QCOMPARE(snapshot->boundingRect(), rect.boundingRect());
 }
 
 void AnnotationItemClipboardTest::TestCopyItems_Should_SetCorrectOffset()
@@ -55,8 +58,7 @@ void AnnotationItemClipboardTest::TestCopyItems_Should_SetCorrectOffset()
 
 	clipboard.copyItems(QPointF(20, 20), &modifier);
 
-	QCOMPARE(clipboard.copiedItemsWithOffset()[&rect], QPointF(-20, -20));
+	QCOMPARE(clipboard.copiedItemsWithOffset().values().first(), QPointF(-20, -20));
 }
 
 TEST_MAIN(AnnotationItemClipboardTest);
-

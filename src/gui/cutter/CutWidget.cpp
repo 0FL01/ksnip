@@ -99,6 +99,7 @@ void CutWidget::initKeyHelper()
 
 void CutWidget::reset()
 {
+	if (!mCutView->scene()) { return; }
 	auto selectionLimit = mAnnotationArea->backgroundImageRect();
 	auto selection = selectionLimit;
 
@@ -124,6 +125,7 @@ void CutWidget::initZoomPicker() const
 
 void CutWidget::cut()
 {
+	if (!mCutView->scene()) { return; }
 	Q_ASSERT(mAnnotationArea != nullptr);
 
 	mAnnotationArea->cut(mSelectionHandler->selection());

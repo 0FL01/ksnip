@@ -31,12 +31,24 @@ AnnotationTabCloser::AnnotationTabCloser(QTabWidget *parent) :
 void AnnotationTabCloser::closeTabTriggered(int index)
 {
 	const auto selectedTabIndex = getValidIndex(index);
+	if (mBatchCloseEnabled) {
+		if (selectedTabIndex >= 0) { emit tabCloseBatchRequested({selectedTabIndex}); }
+		return;
+	}
 	mTabWidget->setCurrentIndex(selectedTabIndex);
 	mTabWidget->tabCloseRequested(selectedTabIndex);
 }
 
 void AnnotationTabCloser::closeOtherTabsTriggered(int index)
 {
+	if (mBatchCloseEnabled) {
+		QList<int> indices;
+		for (int i = mTabWidget->count() - 1; i >= 0; --i) {
+			if (i != getValidIndex(index)) { indices.append(i); }
+		}
+		emit tabCloseBatchRequested(indices);
+		return;
+	}
 	auto selectedWidget = mTabWidget->widget(getValidIndex(index));
 	auto tabCount = mTabWidget->count();
 	for(auto i = tabCount - 1; i >= 0; i--) {
@@ -51,6 +63,12 @@ void AnnotationTabCloser::closeOtherTabsTriggered(int index)
 
 void AnnotationTabCloser::closeAllTabsTriggered()
 {
+	if (mBatchCloseEnabled) {
+		QList<int> indices;
+		for (int i = mTabWidget->count() - 1; i >= 0; --i) { indices.append(i); }
+		emit tabCloseBatchRequested(indices);
+		return;
+	}
 	auto tabCount = mTabWidget->count();
 	for(auto i = tabCount - 1; i >= 0; i--) {
 		mTabWidget->setCurrentIndex(i);
@@ -60,6 +78,12 @@ void AnnotationTabCloser::closeAllTabsTriggered()
 
 void AnnotationTabCloser::closeAllTabsToLeftTriggered(int index)
 {
+	if (mBatchCloseEnabled) {
+		QList<int> indices;
+		for (int i = getValidIndex(index) - 1; i >= 0; --i) { indices.append(i); }
+		emit tabCloseBatchRequested(indices);
+		return;
+	}
 	auto selectedWidget = mTabWidget->widget(getValidIndex(index));
 	for(auto i = index - 1; i >= 0; i--) {
 		mTabWidget->setCurrentIndex(i);
@@ -70,6 +94,12 @@ void AnnotationTabCloser::closeAllTabsToLeftTriggered(int index)
 
 void AnnotationTabCloser::closeAllTabsToRightTriggered(int index)
 {
+	if (mBatchCloseEnabled) {
+		QList<int> indices;
+		for (int i = mTabWidget->count() - 1; i > getValidIndex(index); --i) { indices.append(i); }
+		emit tabCloseBatchRequested(indices);
+		return;
+	}
 	auto tabCount = mTabWidget->count();
 	for(auto i = tabCount - 1; i > index; i--) {
 		mTabWidget->setCurrentIndex(i);
@@ -82,5 +112,7 @@ int AnnotationTabCloser::getValidIndex(int index) const
 {
 	return index >= 0 && index < mTabWidget->count() ? index : mTabWidget->currentIndex();
 }
+
+void AnnotationTabCloser::setBatchCloseEnabled(bool enabled) { mBatchCloseEnabled = enabled; }
 
 } // namespace kImageAnnotator

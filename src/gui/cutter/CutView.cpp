@@ -38,6 +38,7 @@ void CutView::drawForeground(QPainter *painter, const QRectF &rect)
 void CutView::drawBackground(QPainter *painter, const QRectF &rect)
 {
 	auto annotationArea = dynamic_cast<AnnotationArea *>(scene());
+	if (!annotationArea) { return; }
 	mCanvasPainter.paint(painter, annotationArea->canvasRect(), annotationArea->canvasColor());
 }
 

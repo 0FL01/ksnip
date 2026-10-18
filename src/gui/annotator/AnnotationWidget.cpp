@@ -38,6 +38,7 @@ AnnotationWidget::AnnotationWidget(Config *config) :
 
 AnnotationWidget::~AnnotationWidget()
 {
+	delete mAnnotationTabWidget;
 	delete mSettingsAdapter;
 	delete mItemSettings;
 	delete mToolSelection;
@@ -68,6 +69,12 @@ void AnnotationWidget::initGui()
 	connect(mAnnotationTabWidget, &AnnotationTabWidget::tabCloseRequested, this, &AnnotationWidget::tabCloseRequested);
 	connect(mAnnotationTabWidget, &AnnotationTabWidget::tabMoved, this, &AnnotationWidget::tabMoved);
 	connect(mAnnotationTabWidget, &AnnotationTabWidget::tabContextMenuOpened, this, &AnnotationWidget::tabContextMenuOpened);
+	connect(mAnnotationTabWidget, &AnnotationTabWidget::currentImageReadyChanged, this, &AnnotationWidget::currentImageReadyChanged);
+	connect(mAnnotationTabWidget, &AnnotationTabWidget::imageAdmissionChanged, this, &AnnotationWidget::imageAdmissionChanged);
+	connect(mAnnotationTabWidget, &AnnotationTabWidget::imageRequestFinished, this, &AnnotationWidget::imageRequestFinished);
+	connect(mAnnotationTabWidget, &AnnotationTabWidget::rasterBackingError, this, &AnnotationWidget::rasterBackingError);
+	connect(mAnnotationTabWidget, &AnnotationTabWidget::rasterBackingClosed, this, &AnnotationWidget::rasterBackingClosed);
+	connect(mAnnotationTabWidget, &AnnotationTabWidget::tabCloseBatchRequested, this, &AnnotationWidget::tabCloseBatchRequested);
 
 	connect(mControlsWidget, &AnnotationControlsWidget::undo, mAnnotationTabWidget, &AnnotationTabWidget::undoTriggered);
 	connect(mControlsWidget, &AnnotationControlsWidget::redo, mAnnotationTabWidget, &AnnotationTabWidget::redoTriggered);
@@ -90,18 +97,36 @@ AnnotationDockWidget *AnnotationWidget::insertDockWidget(Qt::DockWidgetArea area
 
 QImage AnnotationWidget::image() const
 {
-	auto currentAnnotationArea = annotationArea();
-	return currentAnnotationArea != nullptr ? currentAnnotationArea->image() : QImage();
+	return mAnnotationTabWidget->readyImageAt(mAnnotationTabWidget->currentIndex());
 }
 
 QImage AnnotationWidget::imageAt(int index) const
 {
-	auto annotationArea = annotationAreaAt(index);
-	return annotationArea != nullptr ? annotationArea->image() : QImage();
+	return mAnnotationTabWidget->readyImageAt(index);
 }
+
+bool AnnotationWidget::enableRasterBacking(const QString &directory) { return mAnnotationTabWidget->enableRasterBacking(directory); }
+bool AnnotationWidget::rasterBackingEnabled() const { return mAnnotationTabWidget->rasterBackingEnabled(); }
+bool AnnotationWidget::isCurrentImageReady() const { return mAnnotationTabWidget->isCurrentImageReady(); }
+bool AnnotationWidget::canAcceptImage() const { return mAnnotationTabWidget->canAcceptImage(); }
+bool AnnotationWidget::reserveImageInput() { return mAnnotationTabWidget->reserveImageInput(); }
+void AnnotationWidget::releaseImageInput() { mAnnotationTabWidget->releaseImageInput(); }
+void AnnotationWidget::closeRasterBacking() { mAnnotationTabWidget->closeRasterBacking(); }
+void AnnotationWidget::requestImageAt(int index, quint64 requestId) { mAnnotationTabWidget->requestImageAt(index, requestId); }
+void AnnotationWidget::cancelImageRequest(quint64 requestId) { mAnnotationTabWidget->cancelImageRequest(requestId); }
+void AnnotationWidget::beginTabBatch() { mAnnotationTabWidget->beginTabBatch(); }
+void AnnotationWidget::endTabBatch() { mAnnotationTabWidget->endTabBatch(); }
 
 void AnnotationWidget::loadImage(const QPixmap &pixmap)
 {
+	if (rasterBackingEnabled()) {
+		// Admit before removing anything. A failed admission must leave the last
+		// current image available for synchronous save/copy.
+		auto previous = mAnnotationTabWidget->currentIndex();
+		auto inserted = insertTab(previous < 0 ? 0 : previous, pixmap, QString(), QString());
+		if (inserted >= 0 && previous >= 0) { removeTab(inserted + 1); }
+		return;
+	}
 	auto currentAnnotationArea = annotationArea();
 	auto currentIndex = mAnnotationTabWidget->currentIndex();
 

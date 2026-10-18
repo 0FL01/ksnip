@@ -57,15 +57,18 @@ void AnnotationDuplicate::captureScene()
 		*mRect = parentScene->sceneRect().intersected(*mRect);
 		updateShape();
 
-		mSceneSelectionImage = QImage(mRect->normalized().size().toSize(), QImage::Format_ARGB32_Premultiplied);
-		mSceneSelectionImage.fill(Qt::transparent);
-		QPainter imagePainter(&mSceneSelectionImage);
+		QImage image(mRect->normalized().size().toSize(), QImage::Format_ARGB32_Premultiplied);
+		image.fill(Qt::transparent);
+		QPainter imagePainter(&image);
 
 		QRectF targetRect;
 		targetRect.setSize(mRect->normalized().size());
 		targetRect.setTopLeft(QPointF(0, 0));
 
 		parentScene->render(&imagePainter, targetRect, mRect->normalized());
+		imagePainter.end();
+		mSceneSelectionImage = image;
+		update(); // The late snapshot replaces the pre-finish shape/effect source.
 	}
 }
 
@@ -74,8 +77,14 @@ void AnnotationDuplicate::paint(QPainter *painter, const QStyleOptionGraphicsIte
 	if (mSceneSelectionImage.isNull()) {
 		AbstractAnnotationItem::paint(painter, style, widget);
 	} else {
-		painter->drawImage(mRect->normalized(), mSceneSelectionImage);
+		painter->drawImage(mRect->normalized(), mSceneSelectionImage.image());
 	}
+}
+
+void AnnotationDuplicate::bindRasterDocument(RasterDocument *document)
+{
+	AbstractAnnotationItem::bindRasterDocument(document);
+	mSceneSelectionImage.bind(document);
 }
 
 } // namespace kImageAnnotator

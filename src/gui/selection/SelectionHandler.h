@@ -22,6 +22,7 @@
 
 #include <QRectF>
 #include <QList>
+#include <QPointer>
 
 #include "src/gui/cropper/CropSelectionRestrictor.h"
 #include "src/gui/selection/ISelectionHandles.h"
@@ -58,7 +59,7 @@ signals:
 	void selectionChanged(const QRectF &rect) const;
 
 private:
-	AnnotationArea *mAnnotationArea;
+	QPointer<AnnotationArea> mAnnotationArea;
 	QRectF mSelection;
 	QRectF mSelectionLimit;
 	ISelectionRestrictor *mSelectionRestrictor;

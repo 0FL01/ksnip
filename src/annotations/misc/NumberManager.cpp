@@ -47,6 +47,7 @@ void NumberManager::addItemInner(AbstractAnnotationItem *item)
 	Q_ASSERT(item != nullptr);
 
 	mItems.append(item);
+	connect(item, &QObject::destroyed, this, [this, item]() { mItems.removeAll(item); });
 
 	if (mNumberUpdateMode == NumberUpdateMode::UpdateAllNumbers) {
 		connect(item, &AbstractAnnotationItem::visibleChanged, this, &NumberManager::updateExistingNumbersIfRequired);
@@ -81,7 +82,7 @@ void NumberManager::updateExistingNumbers()
 	for (auto item : mItems) {
 		if (item->isVisible()) {
 			auto numberItem = dynamic_cast<BaseAnnotationNumber *>(item);
-			numberItem->setNumber(number++);
+			if (numberItem) { numberItem->setNumber(number++); }
 		}
 	}
 }

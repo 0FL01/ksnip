@@ -33,6 +33,14 @@ void AddCommand::undo()
     mItem->hide();
 }
 
+AddCommand::~AddCommand()
+{
+	// A removed redo branch owns its detached item, not the scene.
+	if (mItem->scene() == nullptr && mItem->rasterDocument()) {
+		delete mItem;
+	}
+}
+
 void AddCommand::redo()
 {
     mAnnotationArea->addAnnotationItem(mItem);

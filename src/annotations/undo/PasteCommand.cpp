@@ -39,7 +39,11 @@ PasteCommand::PasteCommand(const QHash<kImageAnnotator::AbstractAnnotationItem *
 
 PasteCommand::~PasteCommand()
 {
-	// Deleting with the annotation area
+	for (auto item : mPastedItems) {
+		if (item->scene() == nullptr && item->rasterDocument()) {
+			delete item;
+		}
+	}
 }
 
 void PasteCommand::undo()

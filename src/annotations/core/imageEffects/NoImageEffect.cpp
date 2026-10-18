@@ -23,9 +23,7 @@ namespace kImageAnnotator {
 
 void NoImageEffect::draw(QPainter *painter)
 {
-	QPoint offset;
-	const auto pixmap = sourcePixmap(Qt::LogicalCoordinates, &offset);
-	painter->drawPixmap(offset, pixmap);
+	drawSource(painter);
 }
 
 } // namespace kImageAnnotator

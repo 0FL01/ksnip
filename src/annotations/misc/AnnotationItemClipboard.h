@@ -32,11 +32,14 @@ class AnnotationItemClipboard : public QObject
 Q_OBJECT
 
 public:
-	explicit AnnotationItemClipboard() = default;
-	~AnnotationItemClipboard() override = default;
+	explicit AnnotationItemClipboard(QObject *parent = nullptr);
+	~AnnotationItemClipboard() override;
 	bool isEmpty() const;
 	bool isNotEmpty() const;
 	QHash<AbstractAnnotationItem *, QPointF> copiedItemsWithOffset() const;
+	void enableRasterBacking();
+	RasterHandles rasterHandles() const;
+	quint64 generation() const;
 
 public slots:
 	void copyItems(const QPointF &position, const AnnotationItemModifier *itemModifier);
@@ -44,6 +47,8 @@ public slots:
 
 private:
 	QHash<AbstractAnnotationItem *, QPointF> mCopiedItemsToOffset;
+	RasterDocument *mRasterDocument = nullptr;
+	quint64 mGeneration = 0;
 };
 
 } // namespace kImageAnnotator

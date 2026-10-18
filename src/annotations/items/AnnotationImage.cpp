@@ -42,7 +42,13 @@ Tools AnnotationImage::toolType() const
 
 void AnnotationImage::paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWidget *)
 {
-    painter->drawPixmap(mRect->toRect().normalized(), mImage);
+	painter->drawImage(mRect->toRect().normalized(), mImage.image());
+}
+
+void AnnotationImage::bindRasterDocument(RasterDocument *document)
+{
+	AbstractAnnotationItem::bindRasterDocument(document);
+	mImage.bind(document);
 }
 
 } // namespace kImageAnnotator

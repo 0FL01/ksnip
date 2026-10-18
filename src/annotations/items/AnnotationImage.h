@@ -31,12 +31,13 @@ public:
     AnnotationImage(const AnnotationImage &other);
     ~AnnotationImage() override = default;
     Tools toolType() const override;
+	void bindRasterDocument(RasterDocument *document) override;
 
 protected:
     void paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWidget *) override;
 
 private:
-    QPixmap mImage;
+	RasterImage mImage;
 };
 
 } // namespace kImageAnnotator

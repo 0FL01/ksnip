@@ -38,8 +38,8 @@ public:
 private:
 	QGraphicsPixmapItem *mBackgroundImage;
 	AnnotationArea *mAnnotationArea;
-	QPixmap mOldPixmap;
-	QPixmap mNewPixmap;
+	RasterImage mOldPixmap;
+	RasterImage mNewPixmap;
 
 	static QPixmap rotatePixmap(const QPixmap &sourcePixmap, qreal angel);
 };

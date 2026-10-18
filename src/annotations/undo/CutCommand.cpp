@@ -24,8 +24,9 @@ namespace kImageAnnotator {
 CutCommand::CutCommand(QGraphicsPixmapItem *backgroundImage, const QRectF &cutOutRect, AnnotationArea *annotationArea) :
 	mAnnotationArea(annotationArea),
 	mBackgroundImage(backgroundImage),
-	mOriginalImage(backgroundImage->pixmap())
+	mOriginalImage(RasterImage::fromItem(backgroundImage, annotationArea->rasterDocument()))
 {
+	mCutImage.bind(annotationArea->rasterDocument());
 	auto imageRect = backgroundImage->boundingRect();
 	if(isVerticalCut(cutOutRect, imageRect)) {
 		createCutImage(imageRect, cutOutRect.bottomLeft(), cutOutRect.topRight(), cutOutRect.topLeft());
@@ -36,13 +37,13 @@ CutCommand::CutCommand(QGraphicsPixmapItem *backgroundImage, const QRectF &cutOu
 
 void CutCommand::undo()
 {
-	mBackgroundImage->setPixmap(mOriginalImage);
+	mOriginalImage.apply(mBackgroundImage);
 	mAnnotationArea->setSceneRect(mBackgroundImage->boundingRect());
 }
 
 void CutCommand::redo()
 {
-	mBackgroundImage->setPixmap(mCutImage);
+	mCutImage.apply(mBackgroundImage);
 	mAnnotationArea->setSceneRect(mBackgroundImage->boundingRect());
 }
 
@@ -55,15 +56,18 @@ void CutCommand::createCutImage(const QRectF &imageRect, const QPointF &bottomRi
 {
 	auto rect1 = QRectF(imageRect.topLeft(), bottomRightRect1);
 	auto rect2 = QRectF(topLeftRect2, imageRect.bottomRight());
-	auto image1 = mOriginalImage.copy(rect1.toRect());
-	auto image2 = mOriginalImage.copy(rect2.toRect());
+	auto image1 = mOriginalImage.pixmap().copy(rect1.toRect());
+	auto image2 = mOriginalImage.pixmap().copy(rect2.toRect());
 
 	rect2.moveTopLeft(connectionPoint);
 
-	mCutImage = QPixmap(rect1.united(rect2).size().toSize());
-	QPainter painter(&mCutImage);
+	QPixmap cutImage(rect1.united(rect2).size().toSize());
+	cutImage.fill(Qt::transparent); // Partial/DPR-rounded copies must not expose uninitialized pixels.
+	QPainter painter(&cutImage);
 	painter.drawPixmap(rect1.topLeft(), image1);
 	painter.drawPixmap(rect2.topLeft(), image2);
+	painter.end();
+	mCutImage = cutImage;
 }
 
 } // namespace kImageAnnotator

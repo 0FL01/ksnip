@@ -128,6 +128,8 @@ set(KIMAGEANNOTATOR_SRCS
 	${CMAKE_CURRENT_SOURCE_DIR}/annotations/misc/CanvasPainter.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/backend/Config.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/backend/SettingsAdapter.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/backend/RasterStore.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/backend/RasterStore.h
 	${CMAKE_CURRENT_SOURCE_DIR}/common/provider/DevicePixelRatioScaler.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/common/provider/ScaledSizeProvider.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/common/helper/CursorHelper.cpp

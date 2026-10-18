@@ -36,8 +36,8 @@ public:
 
 private:
 	AnnotationArea *mAnnotationArea;
-	QPixmap mOriginalImage;
-	QPixmap mCroppedImage;
+	RasterImage mOriginalImage;
+	RasterImage mCroppedImage;
 	QGraphicsPixmapItem *mBackgroundImage;
 	QPointF mNewItemOffset;
 };

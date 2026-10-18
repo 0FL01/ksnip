@@ -34,13 +34,14 @@ public:
 	Tools toolType() const override;
 	void finish() override;
 	bool requiresSelectionAfterCreation() const override;
+	void bindRasterDocument(RasterDocument *document) override;
 
 protected:
 	void paint(QPainter *painter, const QStyleOptionGraphicsItem *style, QWidget *widget) override;
 	void updateShape() override;
 
 private:
-	QImage mSceneSelectionImage;
+	RasterImage mSceneSelectionImage;
 
 	void captureScene();
 };

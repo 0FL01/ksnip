@@ -24,20 +24,21 @@ namespace kImageAnnotator {
 RotateCommand::RotateCommand(QGraphicsPixmapItem *backgroundImage, qreal angel, AnnotationArea *annotationArea) :
 	mBackgroundImage(backgroundImage),
 	mAnnotationArea(annotationArea),
-	mOldPixmap(mBackgroundImage->pixmap())
+	mOldPixmap(RasterImage::fromItem(backgroundImage, annotationArea->rasterDocument()))
 {
-	mNewPixmap = rotatePixmap(mOldPixmap, angel);
+	mNewPixmap.bind(annotationArea->rasterDocument());
+	mNewPixmap = rotatePixmap(mOldPixmap.pixmap(), angel);
 }
 
 void RotateCommand::undo()
 {
-	mBackgroundImage->setPixmap(mOldPixmap);
+	mOldPixmap.apply(mBackgroundImage);
 	mAnnotationArea->setSceneRect(mBackgroundImage->boundingRect());
 }
 
 void RotateCommand::redo()
 {
-	mBackgroundImage->setPixmap(mNewPixmap);
+	mNewPixmap.apply(mBackgroundImage);
 	mAnnotationArea->setSceneRect(mBackgroundImage->boundingRect());
 }
 

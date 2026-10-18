@@ -42,6 +42,23 @@ CoreView::CoreView(Config *config) :
 	connect(mAnnotationWidget, &AnnotationWidget::tabCloseRequested, this, &CoreView::tabCloseRequested);
 	connect(mAnnotationWidget, &AnnotationWidget::tabMoved, this, &CoreView::tabMoved);
 	connect(mAnnotationWidget, &AnnotationWidget::tabContextMenuOpened, this, &CoreView::tabContextMenuOpened);
+	connect(mAnnotationWidget, &AnnotationWidget::currentImageReadyChanged, this, &CoreView::currentImageReadyChanged);
+	connect(mAnnotationWidget, &AnnotationWidget::imageAdmissionChanged, this, &CoreView::imageAdmissionChanged);
+	connect(mAnnotationWidget, &AnnotationWidget::imageRequestFinished, this, &CoreView::imageRequestFinished);
+	connect(mAnnotationWidget, &AnnotationWidget::rasterBackingError, this, &CoreView::rasterBackingError);
+	connect(mAnnotationWidget, &AnnotationWidget::rasterBackingClosed, this, &CoreView::rasterBackingClosed);
+	connect(mAnnotationWidget, &AnnotationWidget::tabCloseBatchRequested, this, &CoreView::tabCloseBatchRequested);
+	connect(mAnnotationWidget, &AnnotationWidget::currentTabChanged, this, [this]() {
+		if (!rasterBackingEnabled()) { return; }
+		// Auxiliary tools share scenes. Leave the tool before changing document
+		// residency, not when its QWidget happens to become hidden (e.g. tray).
+		if (currentWidget() != mAnnotationWidget) { showAnnotator(); }
+		for (auto tool : {static_cast<QWidget *>(mCropWidget), static_cast<QWidget *>(mScaleWidget),
+						  static_cast<QWidget *>(mRotateWidget), static_cast<QWidget *>(mModifyCanvasWidget),
+						  static_cast<QWidget *>(mCutWidget)}) {
+			for (auto view : tool->findChildren<QGraphicsView *>()) { view->setScene(nullptr); }
+		}
+	});
 	connect(mAnnotationWidget, &AnnotationWidget::activateCrop, this, &CoreView::showCropper);
 	connect(mAnnotationWidget, &AnnotationWidget::activateScale, this, &CoreView::showScaler);
 	connect(mAnnotationWidget, &AnnotationWidget::activateRotate, this, &CoreView::showRotator);
@@ -72,6 +89,18 @@ QImage CoreView::imageAt(int index) const
 {
 	return mAnnotationWidget->imageAt(index);
 }
+
+bool CoreView::enableRasterBacking(const QString &directory) { return mAnnotationWidget->enableRasterBacking(directory); }
+bool CoreView::rasterBackingEnabled() const { return mAnnotationWidget->rasterBackingEnabled(); }
+bool CoreView::isCurrentImageReady() const { return mAnnotationWidget->isCurrentImageReady(); }
+bool CoreView::canAcceptImage() const { return mAnnotationWidget->canAcceptImage(); }
+bool CoreView::reserveImageInput() { return mAnnotationWidget->reserveImageInput(); }
+void CoreView::releaseImageInput() { mAnnotationWidget->releaseImageInput(); }
+void CoreView::closeRasterBacking() { mAnnotationWidget->closeRasterBacking(); }
+void CoreView::requestImageAt(int index, quint64 requestId) { mAnnotationWidget->requestImageAt(index, requestId); }
+void CoreView::cancelImageRequest(quint64 requestId) { mAnnotationWidget->cancelImageRequest(requestId); }
+void CoreView::beginTabBatch() { mAnnotationWidget->beginTabBatch(); }
+void CoreView::endTabBatch() { mAnnotationWidget->endTabBatch(); }
 
 void CoreView::loadImage(const QPixmap &pixmap)
 {
@@ -106,6 +135,7 @@ void CoreView::showAnnotator()
 
 void CoreView::showCropper()
 {
+	if (!isCurrentImageReady()) { return; }
 	mAnnotationWidget->setUndoEnabled(false);
 	mAnnotationWidget->clearSelection();
 	setCurrentWidget(mCropWidget);
@@ -114,6 +144,7 @@ void CoreView::showCropper()
 
 void CoreView::showScaler()
 {
+	if (!isCurrentImageReady()) { return; }
 	mAnnotationWidget->setUndoEnabled(false);
 	mAnnotationWidget->clearSelection();
 	setCurrentWidget(mScaleWidget);
@@ -122,6 +153,7 @@ void CoreView::showScaler()
 
 void CoreView::showRotator()
 {
+	if (!isCurrentImageReady()) { return; }
 	mAnnotationWidget->setUndoEnabled(false);
 	mAnnotationWidget->clearSelection();
 	setCurrentWidget(mRotateWidget);
@@ -130,6 +162,7 @@ void CoreView::showRotator()
 
 void CoreView::showCutter()
 {
+	if (!isCurrentImageReady()) { return; }
 	mAnnotationWidget->setUndoEnabled(false);
 	mAnnotationWidget->clearSelection();
 	setCurrentWidget(mCutWidget);
@@ -138,6 +171,7 @@ void CoreView::showCutter()
 
 void CoreView::showCanvasModifier()
 {
+	if (!isCurrentImageReady()) { return; }
 	mAnnotationWidget->setUndoEnabled(false);
 	mAnnotationWidget->clearSelection();
 	setCurrentWidget(mModifyCanvasWidget);

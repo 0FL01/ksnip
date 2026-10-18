@@ -26,6 +26,7 @@
 #include <QPainter>
 #include <QMenu>
 #include <QUndoStack>
+#include <QPointer>
 
 #include "AnnotationItemFactory.h"
 #include "AbstractSettingsProvider.h"
@@ -90,15 +91,24 @@ public:
 	QColor canvasColor() const;
 	void modifyCanvas(const QRectF &canvasRect, const QColor &color);
 	QRectF backgroundImageRect() const;
+	void setSceneRect(const QRectF &rect);
+	void setSceneRect(qreal x, qreal y, qreal width, qreal height);
 	void cut(const QRectF &rect);
 	void keyPressed(QKeyEvent *keyEvent) override;
 	void keyReleased(QKeyEvent *keyEvent) override;
+	void enableRasterBacking();
+	RasterDocument *rasterDocument() const;
+	void setRasterResident(bool resident);
+	bool isRasterReady() const;
+	void setRasterInteractionEnabled(bool enabled);
+	void syncPaste(const QPointF &position);
 
 public slots:
     virtual void update();
 
 signals:
     void imageChanged() const;
+	void rasterPasteRequested(const QPointF &position);
 
 protected:
 	void mousePressEvent(QGraphicsSceneMouseEvent* event) override;
@@ -124,7 +134,12 @@ private:
 	QAction *mRedoAction;
 	IDevicePixelRatioScaler *mDevicePixelRatioScaler;
 	QRectF mCanvasRect;
+	QRectF mRequestedSceneRect;
 	QColor mCanvasColor;
+	RasterDocument *mRasterDocument = nullptr;
+	QHash<AbstractAnnotationItem *, QPointer<AbstractAnnotationItem>> mOwnedItems;
+	ImageEffects mImageEffect;
+	bool mRasterInteractionEnabled = true;
 
     void addItemAtPosition(const QPointF& position);
     void addPointToCurrentItem(const QPointF& position);

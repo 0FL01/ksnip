@@ -23,9 +23,8 @@ namespace kImageAnnotator {
 
 void NoEffect::draw(QPainter *painter)
 {
-	QPoint offset;
-	const auto pixmap = sourcePixmap(Qt::LogicalCoordinates, &offset);
-	painter->drawPixmap(offset, pixmap);
+	// A no-op effect needs no offscreen raster or persistent source cache.
+	drawSource(painter);
 }
 
 } // namespace kImageAnnotator

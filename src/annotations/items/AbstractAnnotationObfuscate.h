@@ -21,6 +21,7 @@
 #define KIMAGEANNOTATOR_ABSTRACTANNOTATIONOBFUSCATE_H
 
 #include <QGraphicsScene>
+#include <QScopedValueRollback>
 
 #include "AbstractAnnotationRect.h"
 #include "src/annotations/properties/AnnotationObfuscateProperties.h"
@@ -34,6 +35,8 @@ public:
 	AbstractAnnotationObfuscate(const AbstractAnnotationObfuscate &other);
 	~AbstractAnnotationObfuscate() override = default;
 	ObfuscatePropertiesPtr obfuscateProperties() const;
+	void bindRasterDocument(RasterDocument *document) override;
+	void prepareForRender();
 
 protected:
 	void paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWidget *) override;
@@ -41,8 +44,9 @@ protected:
 	virtual QImage obfuscateBackground(const QImage &sceneBehindItem) const = 0;
 
 private:
-	QImage mObfuscatedImage;
+	RasterImage mObfuscatedImage;
 	bool mObfuscationUpdateRequired;
+	bool mCapturingBackground = false;
 
 	void updateOverlayImage();
 

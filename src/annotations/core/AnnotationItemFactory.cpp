@@ -91,6 +91,13 @@ AbstractAnnotationItem *AnnotationItemFactory::clone(const AbstractAnnotationIte
 	Q_ASSERT(item != nullptr);
 
 	auto newItem = cloneItem(item);
+	if (auto number = dynamic_cast<AnnotationNumber *>(newItem)) {
+		mNumberManager->addItem(number);
+	} else if (auto number = dynamic_cast<AnnotationNumberPointer *>(newItem)) {
+		mNumberManager->addItem(number);
+	} else if (auto number = dynamic_cast<AnnotationNumberArrow *>(newItem)) {
+		mNumberManager->addItem(number);
+	}
 
 	initItem(newItem);
 
@@ -207,15 +214,12 @@ AbstractAnnotationItem *AnnotationItemFactory::cloneItem(const AbstractAnnotatio
 			break;
 		case Tools::Number:
 			newItem = new AnnotationNumber(*(dynamic_cast<const AnnotationNumber *>(item)));
-			mNumberManager->addItem(dynamic_cast<AnnotationNumber *>(newItem));
 			break;
 		case Tools::NumberPointer:
 			newItem = new AnnotationNumberPointer(*(dynamic_cast<const AnnotationNumberPointer *>(item)));
-			mNumberManager->addItem(dynamic_cast<AnnotationNumberPointer *>(newItem));
 			break;
 		case Tools::NumberArrow:
 			newItem = new AnnotationNumberArrow(*(dynamic_cast<const AnnotationNumberArrow *>(item)));
-			mNumberManager->addItem(dynamic_cast<AnnotationNumberArrow *>(newItem));
 			break;
 		case Tools::Text:
 			newItem = new AnnotationText(*(dynamic_cast<const AnnotationText *>(item)));

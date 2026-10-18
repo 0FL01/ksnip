@@ -83,6 +83,72 @@ QImage KImageAnnotator::imageAt(int index) const
 	return d->mCoreView.imageAt(index);
 }
 
+bool KImageAnnotator::enableRasterBacking(const QString &directory)
+{
+	Q_D(KImageAnnotator);
+	return d->mCoreView.enableRasterBacking(directory);
+}
+
+bool KImageAnnotator::rasterBackingEnabled() const
+{
+	Q_D(const KImageAnnotator);
+	return d->mCoreView.rasterBackingEnabled();
+}
+
+bool KImageAnnotator::isCurrentImageReady() const
+{
+	Q_D(const KImageAnnotator);
+	return d->mCoreView.isCurrentImageReady();
+}
+
+bool KImageAnnotator::canAcceptImage() const
+{
+	Q_D(const KImageAnnotator);
+	return d->mCoreView.canAcceptImage();
+}
+
+bool KImageAnnotator::reserveImageInput()
+{
+	Q_D(KImageAnnotator);
+	return d->mCoreView.reserveImageInput();
+}
+
+void KImageAnnotator::releaseImageInput()
+{
+	Q_D(KImageAnnotator);
+	d->mCoreView.releaseImageInput();
+}
+
+void KImageAnnotator::closeRasterBacking()
+{
+	Q_D(KImageAnnotator);
+	d->mCoreView.closeRasterBacking();
+}
+
+void KImageAnnotator::requestImageAt(int index, quint64 requestId)
+{
+	Q_D(KImageAnnotator);
+	d->mCoreView.requestImageAt(index, requestId);
+}
+
+void KImageAnnotator::cancelImageRequest(quint64 requestId)
+{
+	Q_D(KImageAnnotator);
+	d->mCoreView.cancelImageRequest(requestId);
+}
+
+void KImageAnnotator::beginTabBatch()
+{
+	Q_D(KImageAnnotator);
+	d->mCoreView.beginTabBatch();
+}
+
+void KImageAnnotator::endTabBatch()
+{
+	Q_D(KImageAnnotator);
+	d->mCoreView.endTabBatch();
+}
+
 QAction *KImageAnnotator::undoAction()
 {
 	Q_D(KImageAnnotator);
@@ -287,6 +353,12 @@ KImageAnnotatorPrivate::KImageAnnotatorPrivate(KImageAnnotator *kImageAnnotator)
 	kImageAnnotator->connect(&mCoreView, &CoreView::tabCloseRequested, kImageAnnotator, &KImageAnnotator::tabCloseRequested);
 	kImageAnnotator->connect(&mCoreView, &CoreView::tabMoved, kImageAnnotator, &KImageAnnotator::tabMoved);
 	kImageAnnotator->connect(&mCoreView, &CoreView::tabContextMenuOpened, kImageAnnotator, &KImageAnnotator::tabContextMenuOpened);
+	kImageAnnotator->connect(&mCoreView, &CoreView::currentImageReadyChanged, kImageAnnotator, &KImageAnnotator::currentImageReadyChanged);
+	kImageAnnotator->connect(&mCoreView, &CoreView::imageAdmissionChanged, kImageAnnotator, &KImageAnnotator::imageAdmissionChanged);
+	kImageAnnotator->connect(&mCoreView, &CoreView::imageRequestFinished, kImageAnnotator, &KImageAnnotator::imageRequestFinished);
+	kImageAnnotator->connect(&mCoreView, &CoreView::rasterBackingError, kImageAnnotator, &KImageAnnotator::rasterBackingError);
+	kImageAnnotator->connect(&mCoreView, &CoreView::rasterBackingClosed, kImageAnnotator, &KImageAnnotator::rasterBackingClosed);
+	kImageAnnotator->connect(&mCoreView, &CoreView::tabCloseBatchRequested, kImageAnnotator, &KImageAnnotator::tabCloseBatchRequested);
 }
 
 } // namespace kImageAnnotator

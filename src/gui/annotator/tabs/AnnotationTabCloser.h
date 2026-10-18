@@ -32,6 +32,10 @@ class AnnotationTabCloser : public QObject
 public:
 	explicit AnnotationTabCloser(QTabWidget *parent);
 	~AnnotationTabCloser() override = default;
+	void setBatchCloseEnabled(bool enabled);
+
+signals:
+	void tabCloseBatchRequested(const QList<int> &indices);
 
 public slots:
 	void closeTabTriggered(int index);
@@ -43,6 +47,7 @@ public slots:
 
 private:
 	QTabWidget *mTabWidget;
+	bool mBatchCloseEnabled = false;
 
 	int getValidIndex(int index) const;
 };

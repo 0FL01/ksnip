@@ -28,21 +28,21 @@ kImageAnnotator::ScaleCommand::ScaleCommand(QGraphicsPixmapItem *backgroundImage
 	auto currentSize = backgroundImage->boundingRect().size();
 	mWidthScaleFactor = (qreal) newSize.width() / currentSize.width();
 	mHeightScaleFactor = (qreal) newSize.height() / currentSize.height();
-	mOldImage = new QPixmap(backgroundImage->pixmap());
-	mNewImage = new QPixmap(mOldImage->scaled(newSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation));
+	mOldImage.bind(annotationArea->rasterDocument());
+	mNewImage.bind(annotationArea->rasterDocument());
+	mOldImage = RasterImage::fromItem(backgroundImage, annotationArea->rasterDocument());
+	mNewImage = mOldImage.pixmap().scaled(newSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
 }
 
 ScaleCommand::~ScaleCommand()
 {
-	delete mOldImage;
-	delete mNewImage;
 }
 
 void ScaleCommand::undo()
 {
 	scaleItems(1 / mWidthScaleFactor, 1 / mHeightScaleFactor);
 	mBackgroundImage->resetTransform();
-	mBackgroundImage->setPixmap(*mOldImage);
+	mOldImage.apply(mBackgroundImage);
 	mAnnotationArea->setSceneRect(mBackgroundImage->boundingRect());
 }
 
@@ -50,7 +50,7 @@ void ScaleCommand::redo()
 {
 	scaleItems(mWidthScaleFactor, mHeightScaleFactor);
 	mBackgroundImage->resetTransform();
-	mBackgroundImage->setPixmap(*mNewImage);
+	mNewImage.apply(mBackgroundImage);
 	mAnnotationArea->setSceneRect(mBackgroundImage->boundingRect());
 }
 

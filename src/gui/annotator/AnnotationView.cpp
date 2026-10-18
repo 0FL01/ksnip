@@ -30,6 +30,7 @@ AnnotationView::AnnotationView(QWidget *parent) :
 void AnnotationView::drawBackground(QPainter *painter, const QRectF &rect)
 {
 	auto annotationArea = dynamic_cast<AnnotationArea *>(scene());
+	if (!annotationArea) { return; }
 	mCanvasPainter.paint(painter, annotationArea->canvasRect(), annotationArea->canvasColor());
 }
 

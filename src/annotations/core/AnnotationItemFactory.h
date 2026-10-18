@@ -61,6 +61,7 @@ public:
 	AbstractAnnotationItem *create(const QPointF &initPosition);
 	AbstractAnnotationItem *create(const QPointF &initPosition, const QPixmap &image);
 	AbstractAnnotationItem *clone(const AbstractAnnotationItem *item);
+	static AbstractAnnotationItem *cloneItem(const AbstractAnnotationItem *item);
 
 private slots:
 	void setNumberUpdateMode(NumberUpdateMode numberUpdateMode);
@@ -73,7 +74,6 @@ private:
 	Config *mConfig;
 
 	AbstractAnnotationItem *createItem(const QPointF &initPosition, const Tools &toolType, const PropertiesPtr &properties);
-	AbstractAnnotationItem *cloneItem(const AbstractAnnotationItem *item);
 	void initItem(AbstractAnnotationItem *item);
 	void numberSeedChanged(int newNumberSeed);
 };

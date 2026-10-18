@@ -54,7 +54,12 @@ AnnotationArea::AnnotationArea(
 	connect(mItemModifier, &AnnotationItemModifier::itemsSelected, this, &AnnotationArea::itemsSelected);
 	connect(mItemModifier, &AnnotationItemModifier::itemsDeselected, this, &AnnotationArea::itemsDeselected);
 	connect(mItemModifier, &AnnotationItemModifier::itemModified, this, &AnnotationArea::imageChanged);
-	connect(mUndoStack, &UndoStack::indexChanged, this, &AnnotationArea::update);
+	connect(mUndoStack, &UndoStack::indexChanged, this, [this]() {
+		update();
+		// In backing mode asynchronous saves also track undo/redo as edits, not
+		// merely the initial command push. Hydration never changes this index.
+		if (mRasterDocument) { emit imageChanged(); }
+	});
 	connect(mKeyHelper, &KeyHelper::deleteReleased, this, &AnnotationArea::deleteSelectedItems);
 	connect(mKeyHelper, &KeyHelper::escapeReleased, mItemModifier, &AnnotationItemModifier::clear);
 
@@ -64,13 +69,19 @@ AnnotationArea::AnnotationArea(
 
 AnnotationArea::~AnnotationArea()
 {
+	// QUndoStack::clear() emits indexChanged during destruction; it is no longer
+	// an edit and must not call into an already dismantling tab/widget hierarchy.
+	disconnect(mUndoStack, nullptr, this, nullptr);
+	delete mUndoStack;
+	const auto ownedItems = mOwnedItems.values();
+	for (const auto &item : ownedItems) {
+		if (item) { delete item; }
+	}
 	delete mPropertiesFactory;
 	delete mItemFactory;
 	delete mItems;
 	delete mKeyHelper;
-	delete mUndoStack;
 	delete mItemModifier;
-	delete mItemClipboard;
 	delete mDevicePixelRatioScaler;
 }
 
@@ -87,6 +98,9 @@ void AnnotationArea::loadImage(const QPixmap &image)
 
 void AnnotationArea::insertImageItem(const QPointF &position, const QPixmap &image)
 {
+	if (!mRasterInteractionEnabled) {
+		return;
+	}
 	auto imageItem = mItemFactory->create(position, image);
 	mUndoStack->push(new AddCommand(imageItem, this));
 	toolChanged(mSettingsProvider->toolType());
@@ -94,28 +108,58 @@ void AnnotationArea::insertImageItem(const QPointF &position, const QPixmap &ima
 
 void AnnotationArea::replaceBackgroundImage(const QPixmap &image)
 {
-	mBackgroundImage = QSharedPointer<QGraphicsPixmapItem>(addPixmap(image));
+	if (mRasterDocument) {
+		auto item = new RasterPixmapItem(image, mRasterDocument);
+		addItem(item);
+		mBackgroundImage.reset(item);
+	} else {
+		mBackgroundImage = QSharedPointer<QGraphicsPixmapItem>(addPixmap(image));
+	}
 	setSceneRect(QRect());
 }
 
 QImage AnnotationArea::image()
 {
-	if (mBackgroundImage == nullptr) {
+	if (mBackgroundImage == nullptr || !isRasterReady()) {
 		return {};
 	}
 
-	mItemModifier->clear();
+	auto modifierVisible = mItemModifier->isVisible();
+	// Remember a null (automatic) scene rect as null, rather than making its
+	// current computed bounds explicit and preventing future item expansion.
+	auto previousSceneRect = mRequestedSceneRect;
+	if (mRasterDocument) {
+		mItemModifier->setVisible(false);
+	} else {
+		mItemModifier->clear();
+	}
 	
 	setSceneRect(canvasRect());
 	auto sceneRect = this->sceneRect().toRect();
 	QImage image(sceneRect.size(), QImage::Format_ARGB32_Premultiplied);
 	image.fill(mCanvasColor);
 
+	if (mRasterDocument) {
+		// QGraphicsScene::render keeps item-discovery bits until its outer paint
+		// ends. Computing a lazy mask inside that paint would miss the background
+		// during its nested render. Prepare pending masks before entering it.
+		for (auto item : items(Qt::AscendingOrder)) {
+			if (auto mask = dynamic_cast<AbstractAnnotationObfuscate *>(item)) {
+				if (mask->isVisible()) { mask->prepareForRender(); }
+			}
+		}
+	}
+
 	QPainter painter(&image);
 	painter.setRenderHint(QPainter::Antialiasing);
 	render(&painter, QRectF(), sceneRect);
 
-	setSceneRect(QRect()); // Reset scene rect
+	if (mRasterDocument) {
+		setSceneRect(previousSceneRect);
+		mItemModifier->setVisible(modifierVisible);
+	} else {
+		setSceneRect(QRect()); // Reset scene rect
+	}
 
 	return image;
 }
@@ -138,6 +182,12 @@ QAction *AnnotationArea::redoAction()
 
 void AnnotationArea::addAnnotationItem(AbstractAnnotationItem *item)
 {
+	if (!mOwnedItems.contains(item)) {
+		mOwnedItems.insert(item, item);
+		item->QObject::setParent(this);
+		connect(item, &QObject::destroyed, this, [this, item]() { mOwnedItems.remove(item); });
+	}
+	item->bindRasterDocument(mRasterDocument);
 	mItems->prepend(item);
 	addItem(item);
 
@@ -154,6 +204,7 @@ void AnnotationArea::removeAnnotationItem(AbstractAnnotationItem *item)
 
 void AnnotationArea::crop(const QRectF &rect)
 {
+	if (!mRasterInteractionEnabled) { return; }
 	auto scaledRect = mDevicePixelRatioScaler->scale(rect);
 	mUndoStack->push(new CropCommand(mBackgroundImage.data(), scaledRect, this));
 
@@ -162,6 +213,7 @@ void AnnotationArea::crop(const QRectF &rect)
 
 void AnnotationArea::scale(const QSize &size)
 {
+	if (!mRasterInteractionEnabled) { return; }
 	mUndoStack->push(new ScaleCommand(mBackgroundImage.data(), size, this));
 
 	emit imageChanged();
@@ -169,6 +221,7 @@ void AnnotationArea::scale(const QSize &size)
 
 void AnnotationArea::rotate(qreal angel)
 {
+	if (!mRasterInteractionEnabled) { return; }
 	mUndoStack->push(new RotateCommand(mBackgroundImage.data(), angel, this));
 
 	emit imageChanged();
@@ -176,7 +229,8 @@ void AnnotationArea::rotate(qreal angel)
 
 void AnnotationArea::flip(FlipDirection direction)
 {
-	mUndoStack->push(new FlipCommand(mBackgroundImage.data(), direction));
+	if (!mRasterInteractionEnabled) { return; }
+	mUndoStack->push(new FlipCommand(mBackgroundImage.data(), direction, mRasterDocument));
 
 	emit imageChanged();
 }
@@ -189,6 +243,7 @@ void AnnotationArea::clearSelection()
 
 void AnnotationArea::itemSettingsChanged()
 {
+	if (!mRasterInteractionEnabled) { return; }
 	auto selectedItems = mItemModifier->selectedItems();
 	if(selectedItems.count() == 1) {
 		auto item = selectedItems.first();
@@ -209,6 +264,8 @@ int AnnotationArea::numberToolSeed() const
 
 void AnnotationArea::imageEffectChanged(ImageEffects effect)
 {
+	if (!mRasterInteractionEnabled || !mBackgroundImage) { return; }
+	mImageEffect = effect;
 	auto graphicsEffect = ImageEffectFactory::create(effect);
 	mBackgroundImage->setGraphicsEffect(graphicsEffect);
 
@@ -218,6 +275,17 @@ void AnnotationArea::imageEffectChanged(ImageEffects effect)
 void AnnotationArea::setCanvasRect(const QRectF &rect)
 {
 	mCanvasRect = rect;
+}
+
+void AnnotationArea::setSceneRect(const QRectF &rect)
+{
+	mRequestedSceneRect = rect;
+	QGraphicsScene::setSceneRect(rect);
+}
+
+void AnnotationArea::setSceneRect(qreal x, qreal y, qreal width, qreal height)
+{
+	setSceneRect(QRectF(x, y, width, height));
 }
 
 QRectF AnnotationArea::canvasRect() const
@@ -247,6 +315,7 @@ QColor AnnotationArea::canvasColor() const
 
 void AnnotationArea::modifyCanvas(const QRectF &canvasRect, const QColor &color)
 {
+	if (!mRasterInteractionEnabled) { return; }
 	mUndoStack->push(new ModifyCanvasCommand(canvasRect, color, this));
 
 	emit imageChanged();
@@ -259,6 +328,7 @@ QRectF AnnotationArea::backgroundImageRect() const
 
 void AnnotationArea::cut(const QRectF &rect)
 {
+	if (!mRasterInteractionEnabled) { return; }
 	auto scaledRect = mDevicePixelRatioScaler->scale(rect);
 	mUndoStack->push(new CutCommand(mBackgroundImage.data(), scaledRect, this));
 
@@ -267,11 +337,13 @@ void AnnotationArea::cut(const QRectF &rect)
 
 void AnnotationArea::keyPressed(QKeyEvent *keyEvent)
 {
+	if (!mRasterInteractionEnabled) { return; }
 	mKeyHelper->keyPress(keyEvent);
 }
 
 void AnnotationArea::keyReleased(QKeyEvent *keyEvent)
 {
+	if (!mRasterInteractionEnabled) { return; }
 	mKeyHelper->keyRelease(keyEvent);
 }
 
@@ -283,6 +355,7 @@ void AnnotationArea::update()
 
 void AnnotationArea::mousePressEvent(QGraphicsSceneMouseEvent *event)
 {
+	if (!mRasterInteractionEnabled) { event->accept(); return; }
 	if (event->button() == Qt::LeftButton) {
 		if (mSettingsProvider->toolType() == Tools::Select) {
 			mItemModifier->handleMousePress(event->scenePos(), mItems, mKeyHelper->isControlPressed());
@@ -297,6 +370,7 @@ void AnnotationArea::mousePressEvent(QGraphicsSceneMouseEvent *event)
 
 void AnnotationArea::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
 {
+	if (!mRasterInteractionEnabled) { event->accept(); return; }
 	if (event->buttons() == Qt::LeftButton) {
 		if (mCurrentItem) {
 			addPointToCurrentItem(event->scenePos());
@@ -310,6 +384,7 @@ void AnnotationArea::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
 
 void AnnotationArea::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
 {
+	if (!mRasterInteractionEnabled) { event->accept(); return; }
 	if (event->button() == Qt::LeftButton) {
 		if (mSettingsProvider->toolType() == Tools::Select) {
 			mItemModifier->handleMouseRelease(mItems);
@@ -347,6 +422,7 @@ QRectF AnnotationArea::annotationItemsBoundingRect() const
 
 void AnnotationArea::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event)
 {
+	if (!mRasterInteractionEnabled) { event->accept(); return; }
 	if (event->button() == Qt::LeftButton && mSettingsProvider->toolType() == Tools::Select) {
 		mItemModifier->handleMouseDoubleClick(event->scenePos(), mItems);
 	}
@@ -354,6 +430,7 @@ void AnnotationArea::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event)
 
 void AnnotationArea::contextMenuEvent(QGraphicsSceneContextMenuEvent *event)
 {
+	if (!mRasterInteractionEnabled) { event->accept(); return; }
 	finishDrawingItem(event->scenePos());
 
 	mItemModifier->handleSelectionAt(event->scenePos(), mItems, mKeyHelper->isControlPressed());
@@ -417,13 +494,15 @@ void AnnotationArea::resetAnnotationArea()
 
 void AnnotationArea::removeAllItems()
 {
-	for (auto item : *mItems) {
+	const auto items = *mItems;
+	for (auto item : items) {
 		removeAnnotationItem(item);
 	}
 }
 
 void AnnotationArea::deleteSelectedItems()
 {
+	if (!mRasterInteractionEnabled) { return; }
 	auto selectedItems = mItemModifier->selectedItems();
 	mItemModifier->clear();
 	mUndoStack->push(new DeleteCommand(selectedItems, this));
@@ -434,8 +513,64 @@ void AnnotationArea::deleteSelectedItems()
 
 void AnnotationArea::pasteCopiedItems(const QPointF &position)
 {
+	if (!mRasterInteractionEnabled) { return; }
+	if (mRasterDocument) {
+		emit rasterPasteRequested(position);
+	} else {
+		syncPaste(position);
+	}
+}
+
+void AnnotationArea::syncPaste(const QPointF &position)
+{
 	auto copiedItems = mItemClipboard->copiedItemsWithOffset();
 	mUndoStack->push(new PasteCommand(copiedItems, position, mItemFactory, this));
+}
+
+void AnnotationArea::enableRasterBacking()
+{
+	Q_ASSERT(!mBackgroundImage);
+	if (!mRasterDocument) {
+		mRasterDocument = new RasterDocument(this);
+	}
+}
+
+RasterDocument *AnnotationArea::rasterDocument() const { return mRasterDocument; }
+
+bool AnnotationArea::isRasterReady() const
+{
+	return !mRasterDocument || (mRasterDocument->isResident() && mRasterDocument->isDecoded());
+}
+
+void AnnotationArea::setRasterInteractionEnabled(bool enabled)
+{
+	mRasterInteractionEnabled = enabled;
+	if (!enabled) {
+		mKeyHelper->reset();
+	}
+	if (mUndoAction) { mUndoAction->setEnabled(enabled && mUndoStack->canUndo()); }
+	if (mRedoAction) { mRedoAction->setEnabled(enabled && mUndoStack->canRedo()); }
+}
+
+void AnnotationArea::setRasterResident(bool resident)
+{
+	if (!mRasterDocument) { return; }
+	mRasterDocument->setResident(resident);
+	if (auto item = dynamic_cast<RasterPixmapItem *>(mBackgroundImage.data())) {
+		item->refreshDecodedPixmap();
+		// Invalidate Qt's hidden source-pixmap cache without replacing the effect
+		// (its bounds remain document metadata while the page is cold).
+		if (auto effect = item->graphicsEffect()) {
+			auto enabled = effect->isEnabled();
+			effect->setEnabled(!enabled);
+			effect->setEnabled(enabled);
+		}
+		item->setCacheMode(QGraphicsItem::NoCache);
+	}
+	for (const auto &item : mOwnedItems) {
+		if (item) { item->setRasterEffectsResident(resident); }
+	}
+	QGraphicsScene::update();
 }
 
 void AnnotationArea::enableEditing()

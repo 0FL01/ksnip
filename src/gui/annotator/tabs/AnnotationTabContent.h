@@ -35,10 +35,12 @@ class AnnotationTabContent : public QWidget
 {
 	Q_OBJECT
 public:
-	AnnotationTabContent(const QPixmap &pixmap, Config *config, AbstractSettingsProvider *settingsProvider, AnnotationItemClipboard *itemClipboard);
+	AnnotationTabContent(const QPixmap &pixmap, Config *config, AbstractSettingsProvider *settingsProvider, AnnotationItemClipboard *itemClipboard, bool rasterBacking = false);
 	~AnnotationTabContent() override = default;
 	AnnotationArea* annotationArea() const;
 	ZoomValueProvider* zoomValueProvider() const;
+	void setRasterReady(bool ready);
+	void setRasterEditingEnabled(bool enabled);
 
 private:
 	AnnotationView *mAnnotationView;

@@ -12,6 +12,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
 option(BUILD_TESTS "Build Unit Tests" OFF)
+option(KIMAGEANNOTATOR_BUILD_TESTS "Build kImageAnnotator tests independently of parent BUILD_TESTS" OFF)
 option(BUILD_EXAMPLE "Build Example Application" ON)
 
 include(GNUInstallDirs)
@@ -55,9 +56,11 @@ if (BUILD_EXAMPLE)
 	add_subdirectory(example)
 endif (BUILD_EXAMPLE)
 
-if (BUILD_TESTS)
+if (BUILD_TESTS OR KIMAGEANNOTATOR_BUILD_TESTS)
+	# Must be visible in this directory for standalone ctest discovery too.
+	enable_testing()
 	add_subdirectory(tests)
-endif (BUILD_TESTS)
+endif ()
 
 include(CMakePackageConfigHelpers)
 

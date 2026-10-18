@@ -21,6 +21,23 @@
 
 namespace kImageAnnotator {
 
+AnnotationItemClipboard::AnnotationItemClipboard(QObject *parent) : QObject(parent) {}
+AnnotationItemClipboard::~AnnotationItemClipboard() { clear(); }
+
+void AnnotationItemClipboard::enableRasterBacking()
+{
+	Q_ASSERT(isEmpty());
+	mRasterDocument = new RasterDocument(this);
+	mRasterDocument->setResident(false);
+}
+
+RasterHandles AnnotationItemClipboard::rasterHandles() const
+{
+	return mRasterDocument ? mRasterDocument->handles() : RasterHandles();
+}
+
+quint64 AnnotationItemClipboard::generation() const { return mGeneration; }
+
 bool AnnotationItemClipboard::isEmpty() const
 {
 	return mCopiedItemsToOffset.count() == 0;
@@ -36,7 +53,12 @@ void AnnotationItemClipboard::copyItems(const QPointF &position, const Annotatio
 	clear();
 
 	for (auto item : itemModifier->selectedItems()) {
-		mCopiedItemsToOffset[item] = item->position() - position;
+		auto snapshot = AnnotationItemFactory::cloneItem(item);
+		if (snapshot) {
+			snapshot->bindRasterDocument(mRasterDocument);
+			snapshot->setRasterEffectsResident(false);
+			mCopiedItemsToOffset[snapshot] = item->position() - position;
+		}
 	}
 }
 
@@ -47,6 +69,8 @@ QHash<AbstractAnnotationItem *, QPointF> AnnotationItemClipboard::copiedItemsWit
 
 void AnnotationItemClipboard::clear()
 {
+	++mGeneration;
+	qDeleteAll(mCopiedItemsToOffset.keys());
 	mCopiedItemsToOffset.clear();
 }
 

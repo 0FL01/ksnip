@@ -21,19 +21,36 @@
 
 namespace kImageAnnotator {
 
-AnnotationTabContent::AnnotationTabContent(const QPixmap &pixmap, Config *config, AbstractSettingsProvider *settingsProvider, AnnotationItemClipboard *itemClipboard) :
+AnnotationTabContent::AnnotationTabContent(const QPixmap &pixmap, Config *config, AbstractSettingsProvider *settingsProvider, AnnotationItemClipboard *itemClipboard, bool rasterBacking) :
 	mAnnotationView(new AnnotationView(this)),
 	mZoomValueProvider(mAnnotationView->zoomValueProvider()),
 	mAnnotationArea(new AnnotationArea(config, settingsProvider, new DevicePixelRatioScaler, mZoomValueProvider, itemClipboard, this)),
 	mMainLayout(new QHBoxLayout(this)),
 	mSettingsProvider(settingsProvider)
 {
+	if (rasterBacking) {
+		mAnnotationArea->enableRasterBacking();
+	}
 	mAnnotationView->setScene(mAnnotationArea);
 	mAnnotationArea->loadImage(pixmap);
 	mMainLayout->addWidget(mAnnotationView);
 	setLayout(mMainLayout);
 
 	connect(mZoomValueProvider, &ZoomValueProvider::zoomValueChanged, this, &AnnotationTabContent::zoomValueChange);
+}
+
+void AnnotationTabContent::setRasterReady(bool ready)
+{
+	mAnnotationArea->setRasterInteractionEnabled(ready);
+	// Hiding only the view avoids painting a half-decoded scene and preserves
+	// its scroll position, selection, zoom and the tab page itself.
+	mAnnotationView->setVisible(ready);
+}
+
+void AnnotationTabContent::setRasterEditingEnabled(bool enabled)
+{
+	mAnnotationArea->setRasterInteractionEnabled(enabled);
+	mAnnotationView->setEnabled(enabled);
 }
 
 AnnotationArea* AnnotationTabContent::annotationArea() const

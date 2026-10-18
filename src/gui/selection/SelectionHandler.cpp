@@ -90,7 +90,7 @@ void SelectionHandler::release()
 
 void SelectionHandler::resetSelection(const QRectF &selection, const QRectF &selectionLimit)
 {
-	Q_ASSERT(mAnnotationArea != nullptr);
+	if (!mAnnotationArea) { return; }
 
 	setSelection(selection);
 	mSelectionLimit = selectionLimit;
@@ -127,7 +127,7 @@ void SelectionHandler::setPositionY(int y)
 
 void SelectionHandler::update()
 {
-	Q_ASSERT(mAnnotationArea != nullptr);
+	if (!mAnnotationArea) { return; }
 
 	mHandles->updateHandles(mSelection);
 	mAnnotationArea->update();

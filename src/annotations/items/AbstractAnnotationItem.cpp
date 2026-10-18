@@ -216,4 +216,29 @@ void AbstractAnnotationItem::updateShadow()
 	}
 }
 
+void AbstractAnnotationItem::bindRasterDocument(RasterDocument *document)
+{
+	mRasterDocument = document;
+}
+
+RasterDocument *AbstractAnnotationItem::rasterDocument() const
+{
+	return mRasterDocument;
+}
+
+void AbstractAnnotationItem::setRasterEffectsResident(bool resident)
+{
+	Q_UNUSED(resident)
+	std::function<void(QGraphicsItem *)> invalidate = [&invalidate](QGraphicsItem *item) {
+		item->setCacheMode(QGraphicsItem::NoCache);
+		if (auto effect = item->graphicsEffect()) {
+			auto enabled = effect->isEnabled();
+			effect->setEnabled(!enabled);
+			effect->setEnabled(enabled);
+		}
+		for (auto child : item->childItems()) { invalidate(child); }
+	};
+	invalidate(this);
+}
+
 } // namespace kImageAnnotator

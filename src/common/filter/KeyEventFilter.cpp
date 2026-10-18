@@ -34,6 +34,8 @@ KeyEventFilter::~KeyEventFilter()
 
 void KeyEventFilter::setListener(IKeyEventListener *listener)
 {
+	if (listener == mKeyEventListener) { return; }
+	mPressedKeyCodes.clear();
 	mKeyEventListener = listener;
 }
 

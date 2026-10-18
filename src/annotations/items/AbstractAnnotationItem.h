@@ -30,6 +30,7 @@
 #include "src/common/enum/Tools.h"
 #include "src/annotations/misc/itemEffects/ShadowEffect.h"
 #include "src/annotations/misc/itemEffects/NoEffect.h"
+#include "src/backend/RasterStore.h"
 
 namespace kImageAnnotator {
 
@@ -55,6 +56,9 @@ public:
 	virtual Tools toolType() const = 0;
 	virtual void setProperties(const PropertiesPtr &properties);
 	virtual void init();
+	virtual void bindRasterDocument(RasterDocument *document);
+	void setRasterEffectsResident(bool resident);
+	RasterDocument *rasterDocument() const;
 
 signals:
 	void propertiesChanged();
@@ -76,6 +80,7 @@ private:
 	QPainterPathStroker *mStroker;
 
 	QPen mPainterPen;
+	QPointer<RasterDocument> mRasterDocument;
 	void shiftPainterForAllOddShapeWidth(QPainter *painter) const;
 	void drawPath(QPainter *painter) const;
 	void drawPoint(QPainter *painter) const;

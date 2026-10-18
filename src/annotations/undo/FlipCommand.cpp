@@ -21,21 +21,22 @@
 
 namespace kImageAnnotator {
 
-FlipCommand::FlipCommand(QGraphicsPixmapItem *backgroundImage, FlipDirection direction) :
+FlipCommand::FlipCommand(QGraphicsPixmapItem *backgroundImage, FlipDirection direction, RasterDocument *document) :
 	mBackgroundImage(backgroundImage),
-	mOldPixmap(backgroundImage->pixmap())
+	mOldPixmap(RasterImage::fromItem(backgroundImage, document))
 {
-	mNewPixmap = flipPixmap(mOldPixmap, direction);
+	mNewPixmap.bind(document);
+	mNewPixmap = flipPixmap(mOldPixmap.pixmap(), direction);
 }
 
 void FlipCommand::undo()
 {
-	mBackgroundImage->setPixmap(mOldPixmap);
+	mOldPixmap.apply(mBackgroundImage);
 }
 
 void FlipCommand::redo()
 {
-	mBackgroundImage->setPixmap(mNewPixmap);
+	mNewPixmap.apply(mBackgroundImage);
 }
 
 QPixmap FlipCommand::flipPixmap(const QPixmap &sourcePixmap, FlipDirection direction)

@@ -133,6 +133,7 @@ void CropWidget::keyReleaseEvent(QKeyEvent *event)
 
 void CropWidget::crop()
 {
+	if (!mCropView->scene()) { return; }
 	Q_ASSERT(mAnnotationArea != nullptr);
 
 	mAnnotationArea->crop(mSelectionHandler->selection());
@@ -173,6 +174,7 @@ void CropWidget::heightChanged(const QString &text)
 
 void CropWidget::reset()
 {
+	if (!mCropView->scene()) { return; }
 	auto selection = mAnnotationArea->backgroundImageRect();
 	mSelectionHandler->resetSelection(selection, selection);
 }

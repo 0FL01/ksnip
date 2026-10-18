@@ -40,6 +40,17 @@ public:
 	~CoreView() override;
 	QImage image() const;
 	QImage imageAt(int index) const;
+	bool enableRasterBacking(const QString &directory = QString());
+	bool rasterBackingEnabled() const;
+	bool isCurrentImageReady() const;
+	bool canAcceptImage() const;
+	bool reserveImageInput();
+	void releaseImageInput();
+	void closeRasterBacking();
+	void requestImageAt(int index, quint64 requestId);
+	void cancelImageRequest(quint64 requestId);
+	void beginTabBatch();
+	void endTabBatch();
 	QAction *undoAction();
 	QAction *redoAction();
 	QSize sizeHint() const override;
@@ -51,6 +62,12 @@ signals:
 	void tabCloseRequested(int index) const;
 	void tabMoved(int fromIndex, int toIndex);
 	void tabContextMenuOpened(int index) const;
+	void currentImageReadyChanged(bool ready);
+	void imageAdmissionChanged(bool allowed);
+	void imageRequestFinished(quint64 requestId, const QImage &image, bool canceled, const QString &error);
+	void rasterBackingError(const QString &message);
+	void rasterBackingClosed();
+	void tabCloseBatchRequested(const QList<int> &indices);
 
 public slots:
 	void loadImage(const QPixmap &pixmap);

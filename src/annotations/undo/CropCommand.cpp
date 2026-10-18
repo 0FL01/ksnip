@@ -24,8 +24,8 @@ namespace kImageAnnotator {
 CropCommand::CropCommand(QGraphicsPixmapItem *backgroundImage, const QRectF &cropRect, AnnotationArea *annotationArea) :
 	mAnnotationArea(annotationArea),
 	mBackgroundImage(backgroundImage),
-	mOriginalImage(backgroundImage->pixmap()),
-	mCroppedImage(mOriginalImage.copy(cropRect.toRect())),
+	mOriginalImage(RasterImage::fromItem(backgroundImage, annotationArea->rasterDocument())),
+	mCroppedImage(mOriginalImage.pixmap().copy(cropRect.toRect()), annotationArea->rasterDocument()),
 	mNewItemOffset(cropRect.topLeft())
 {
 }
@@ -39,7 +39,7 @@ void CropCommand::undo()
 		}
 	}
 
-	mBackgroundImage->setPixmap(mOriginalImage);
+	mOriginalImage.apply(mBackgroundImage);
 	mAnnotationArea->setSceneRect(mBackgroundImage->boundingRect());
 }
 
@@ -52,7 +52,7 @@ void CropCommand::redo()
 		}
 	}
 
-	mBackgroundImage->setPixmap(mCroppedImage);
+	mCroppedImage.apply(mBackgroundImage);
 	mAnnotationArea->setSceneRect(mBackgroundImage->boundingRect());
 }
 

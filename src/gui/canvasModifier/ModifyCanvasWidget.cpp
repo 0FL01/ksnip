@@ -161,6 +161,7 @@ void ModifyCanvasWidget::initSelectionHandler() const
 
 void ModifyCanvasWidget::reset()
 {
+	if (!mModifyCanvasView->scene()) { return; }
 	auto selection = mAnnotationArea->canvasRect();
 	auto selectionLimit = mAnnotationArea->sceneRect();
 	mSelectionHandler->resetSelection(selection, selectionLimit);
@@ -180,6 +181,7 @@ void ModifyCanvasWidget::initZoomPicker()
 
 void ModifyCanvasWidget::apply()
 {
+	if (!mModifyCanvasView->scene()) { return; }
 	mAnnotationArea->modifyCanvas(mSelectionHandler->selection(), mColorDialogButton->color());
 	emit closing();
 }

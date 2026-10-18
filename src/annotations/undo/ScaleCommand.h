@@ -37,8 +37,8 @@ public:
 private:
 	AnnotationArea *mAnnotationArea;
 	QGraphicsPixmapItem *mBackgroundImage;
-	QPixmap *mOldImage;
-	QPixmap *mNewImage;
+	RasterImage mOldImage;
+	RasterImage mNewImage;
 	qreal mWidthScaleFactor;
 	qreal mHeightScaleFactor;
 

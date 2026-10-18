@@ -29,6 +29,7 @@ CropView::CropView(SelectionHandler *cropSelectionHandler, KeyHelper *keyHelper,
 void CropView::drawForeground(QPainter *painter, const QRectF &rect)
 {
 	auto annotationArea = dynamic_cast<AnnotationArea *>(scene());
+	if (!annotationArea) { return; }
 	auto backgroundImageRect = annotationArea->backgroundImageRect();
 	painter->setClipRegion(QRegion(backgroundImageRect.toRect()).subtracted(QRegion(currentSelection().toRect())));
 	painter->setBrush(QColor(0, 0, 0, 150));
@@ -40,6 +41,7 @@ void CropView::drawForeground(QPainter *painter, const QRectF &rect)
 void CropView::drawBackground(QPainter *painter, const QRectF &rect)
 {
 	auto annotationArea = dynamic_cast<AnnotationArea *>(scene());
+	if (!annotationArea) { return; }
 	mCanvasPainter.paint(painter, annotationArea->canvasRect(), annotationArea->canvasColor());
 }
 

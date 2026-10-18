@@ -19,8 +19,6 @@
 
 #include "AbstractAnnotationObfuscate.h"
 
-#include <QDebug>
-
 namespace kImageAnnotator {
 
 
@@ -45,14 +43,25 @@ ObfuscatePropertiesPtr AbstractAnnotationObfuscate::obfuscateProperties() const
 
 void AbstractAnnotationObfuscate::paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWidget *)
 {
-	// We need to update the image here, otherwise the scene is not ready
-	// to be painted, and we only draw the background
-	if (mObfuscationUpdateRequired) {
-		updateOverlayImage();
-		mObfuscationUpdateRequired = false;
-	}
+	if (mCapturingBackground) { return; }
+	prepareForRender();
 
-	painter->drawImage(mRect->normalized(), mObfuscatedImage);
+	painter->drawImage(mRect->normalized(), mObfuscatedImage.image());
+}
+
+void AbstractAnnotationObfuscate::prepareForRender()
+{
+	// A nested scene render must not recursively compute other pending masks.
+	// Ready snapshots remain paintable and this item is excluded from its own
+	// background without hiding/deselecting it.
+	static thread_local bool preparing = false;
+	if (!mObfuscationUpdateRequired || preparing) { return; }
+	QScopedValueRollback<bool> preparationGuard(preparing, true);
+	QScopedValueRollback<bool> captureGuard(mCapturingBackground, true);
+	update();
+	updateOverlayImage();
+	mObfuscationUpdateRequired = false;
+	update();
 }
 
 void AbstractAnnotationObfuscate::updateShape()
@@ -86,6 +95,13 @@ void AbstractAnnotationObfuscate::updateOverlayImage()
 void AbstractAnnotationObfuscate::propertiesUpdated()
 {
 	updateShape();
+}
+
+void AbstractAnnotationObfuscate::bindRasterDocument(RasterDocument *document)
+{
+	AbstractAnnotationItem::bindRasterDocument(document);
+	mObfuscatedImage.bind(document);
+	// Paging is not an edit: retain mObfuscationUpdateRequired exactly as-is.
 }
 
 } // namespace kImageAnnotator
