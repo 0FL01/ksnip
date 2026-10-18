@@ -1,6 +1,6 @@
 # Goal: disk-backed open screenshot tabs
 
-Status: active
+Status: complete
 Source: user-approved memory plan and audit; implement, commit, push, and finish only after a successful GitHub Actions build.
 Last updated: 2026-10-18
 
@@ -48,12 +48,15 @@ remain satisfied.
   - Acceptance: published root and library commits, successful Actions run for
     the delivered root SHA, with test/build steps and RPM artifact.
   - Primary evidence: git SHAs and GitHub Actions run URL/conclusion.
-  - Status: in_progress
+  - Status: verified
   - Evidence: library ac73599e0dc5a59831e2a0e34ca64810aaa933d5 is published on
     `0FL01/ksnip:kimageannotator-raster-cache`; root
-    `14ab93636f1d2eaf2a4d0dfb6e15708529fc1c74` is published. Actions run
-    https://github.com/0FL01/ksnip/actions/runs/39157323459 exposed an unsupported
-    Fedora legacy dependency; the compatibility setup is being corrected below.
+    feature `14ab93636f1d2eaf2a4d0dfb6e15708529fc1c74` and CI correction
+    `bfe9cd13a1eac0abf06dd03e8912c19b3a021170` are published. Corrected run
+    https://github.com/0FL01/ksnip/actions/runs/39158192845 completed successfully
+    at 20:16:56 UTC: Qt 5 bundled, Qt 6 installed legacy, and Fedora RPM all pass.
+    Artifact `ksnip-fedora-44-x86_64-bfe9cd13` (ID 12148909232) contains the RPM
+    and source RPM; the continuous release is published.
 
 ### Constraints
 
@@ -86,23 +89,19 @@ remain satisfied.
 
 ## Current Checkpoint
 
-- Closes: R3.
-- Smallest next action: publish the verified CI prerequisite correction and
-  inspect the resulting build/test artifact.
-- Expected evidence: successful Actions run for the published root revision.
-- Replan if: CI identifies a concrete build/test failure.
+- Closed: R1-R3. Publish this final execution record; no further implementation
+  or scope expansion is required.
 
 ## Current State
 
-- Resolved: R1/R2 implementation and final local test gates are green. The
-  modified library and root commits are published. The first CI compatibility
-  job found Fedora's 0.7.0 editor below the existing required 0.7.1 minimum.
+- Resolved: R1-R3. Implementation, final local gates, all three corrected CI jobs,
+  reproducible publication, and the generated RPM/source RPM artifact pass.
 - Last relevant evidence: 51/51 editor tests (26.21 s), 21/21 app tests (4.43 s),
   the controlled 100-screenshot memory experiment below, and a successful full
   KSnip compile against genuinely installed pre-feature editor headers/library.
-- Blocker: none proven. `gh` is absent; existing git transport and Actions read
-  tools remain available for publication and verification.
-- Next: publish and verify the corrected GitHub Actions workflow and RPM artifact.
+- Blocker: none. Publication used the existing git transport; Actions API tools
+  verified the actual completed run and artifact.
+- Next: none; the frozen objective is complete.
 
 ## Material Decisions
 
@@ -197,6 +196,18 @@ remain satisfied.
   ksnip --parallel 4` (185 application build steps). A fresh shallow public fetch
   also proves the old SHA is reachable and its public header has no backing
   capability macro. Workflow YAML and every compatibility shell script parse.
+- 2026-10-18: CI prerequisite fix `bfe9cd13` is committed/pushed and run
+  `39158192845` started. The first run's Qt 5 bundled build passed; its RPM job
+  was superseded/canceled by the configured workflow concurrency, not a compiler
+  failure. The new run must finish before R3 can be resolved.
+- 2026-10-18: run `39158192845` completed with `conclusion: success` for root
+  `bfe9cd13a1eac0abf06dd03e8912c19b3a021170`; all three jobs pass. The RPM job
+  builds/tests the Qt 6/OCR artifact, validates installation/dependency closure,
+  and publishes RPM/source RPM. Artifact ID `12148909232`, 451,599,856 bytes,
+  SHA-256 `35326a68749d7052a477b90f06958f0301ff0dfb7152d83b20b9527c165405bc`.
+  Closure confirms unchanged source since the passing gates, the published
+  submodule pin, four-core/low-priority local builds, and no user-process or
+  system installation changes. All required outcomes are verified.
 
 ## Controlled Memory Evidence
 
@@ -221,7 +232,13 @@ and `build-memory/memory-measurements.log`; it also awaits normal cleanup.
 
 ## Completion
 
-- Resolved outcomes: pending.
-- Commands and artifacts: pending.
-- Constraint and diff-scope check: pending.
-- Final status: active.
+- Resolved outcomes: R1, R2, R3 verified.
+- Commands and artifacts: both final CMake/CTest gates above; real legacy-library
+  compile; controlled memory experiment; successful Actions run `39158192845`;
+  [RPM/source RPM artifact](https://github.com/0FL01/ksnip/actions/runs/39158192845/artifacts/12148909232)
+  and [continuous release](https://github.com/0FL01/ksnip/releases/tag/continuous).
+- Constraint and diff-scope check: implementation stays within the frozen
+  envelope, uses existing Qt facilities, preserves legacy feature-off builds,
+  and was compiled locally on four cores with lowered priority. The user's
+  running KSnip and system installation were not changed.
+- Final status: complete.

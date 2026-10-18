@@ -21,12 +21,15 @@ The final local Qt 6 editor and application builds pass with `nice -n 10 taskset
 executables. A controlled isolated-editor experiment with 100 distinct 1080p
 images measures PSS 826.7 MiB without backing versus 66.7 MiB with backing;
 100 identical inputs share one 7.91 MiB disk blob. These are not measurements of
-the user's full running KSnip. Library commit `ac73599e` and root `14ab9363`
-are published. Actions run `39157323459` exposed an unsupported Fedora legacy
-dependency (0.7.0 versus the unchanged 0.7.1 minimum); the compatibility job is
-being corrected to use genuine installed pre-feature sources. Successful Actions
-verification is pending. Exact follow-up evidence is in the linked goal document,
-not in the older Wayland/OCR outcome statuses.
+the user's full running KSnip. Library `ac73599e`, root feature `14ab9363`, and
+CI correction `bfe9cd13` are published. The first run passed the Qt 5 feature
+build but exposed Fedora's unsupported 0.7.0 legacy package. A local build against
+genuine installed pre-feature headers/library passes. Corrected Actions run
+`39158192845` completed successfully: Qt 5 bundled, Qt 6 installed legacy, and
+the Qt 6/OCR Fedora RPM build/validation all pass. RPM/source RPM artifact
+`12148909232` and the continuous release are published. This follow-up is
+complete; exact evidence is in the linked goal document, not in the older
+Wayland/OCR outcome statuses.
 
 ## Objective
 
