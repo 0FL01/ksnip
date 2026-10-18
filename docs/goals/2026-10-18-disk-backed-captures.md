@@ -50,7 +50,10 @@ remain satisfied.
   - Primary evidence: git SHAs and GitHub Actions run URL/conclusion.
   - Status: in_progress
   - Evidence: library ac73599e0dc5a59831e2a0e34ca64810aaa933d5 is published on
-    `0FL01/ksnip:kimageannotator-raster-cache`; root push/Actions pending.
+    `0FL01/ksnip:kimageannotator-raster-cache`; root
+    `14ab93636f1d2eaf2a4d0dfb6e15708529fc1c74` is published. Actions run
+    https://github.com/0FL01/ksnip/actions/runs/39157323459 exposed an unsupported
+    Fedora legacy dependency; the compatibility setup is being corrected below.
 
 ### Constraints
 
@@ -84,20 +87,22 @@ remain satisfied.
 ## Current Checkpoint
 
 - Closes: R3.
-- Smallest next action: publish the root commit and inspect its Fedora RPM and
-  compatibility jobs until the required build/test artifact succeeds.
+- Smallest next action: publish the verified CI prerequisite correction and
+  inspect the resulting build/test artifact.
 - Expected evidence: successful Actions run for the published root revision.
 - Replan if: CI identifies a concrete build/test failure.
 
 ## Current State
 
 - Resolved: R1/R2 implementation and final local test gates are green. The
-  modified library commit is already published; its worktree is clean.
+  modified library and root commits are published. The first CI compatibility
+  job found Fedora's 0.7.0 editor below the existing required 0.7.1 minimum.
 - Last relevant evidence: 51/51 editor tests (26.21 s), 21/21 app tests (4.43 s),
-  and the controlled 100-screenshot memory experiment below.
+  the controlled 100-screenshot memory experiment below, and a successful full
+  KSnip compile against genuinely installed pre-feature editor headers/library.
 - Blocker: none proven. `gh` is absent; existing git transport and Actions read
   tools remain available for publication and verification.
-- Next: push the root pin/integration and verify GitHub Actions.
+- Next: publish and verify the corrected GitHub Actions workflow and RPM artifact.
 
 ## Material Decisions
 
@@ -176,6 +181,22 @@ remain satisfied.
   passes 51/51; the corresponding `build-memory` rebuild/test passes 21/21.
   Published library commit `ac73599e0dc5a59831e2a0e34ca64810aaa933d5` before
   committing the root gitlink, so recursive checkout is reproducible.
+- 2026-10-18: root `14ab93636f1d2eaf2a4d0dfb6e15708529fc1c74` is committed and
+  pushed. Fedora RPM run `39157323459` started with the RPM job plus Qt 5
+  bundled/Qt 6 genuine-system-library compatibility jobs. Monitoring the actual
+  job outcomes; no successful CI build is claimed yet.
+- 2026-10-18: the system-library CI configure failed because Fedora 44 provides
+  kImageAnnotator 0.7.0, below the unchanged 0.7.1 requirement. Do not lower that
+  floor. The compatibility job now stages the actual original editor revision
+  `7eedc8975fe447761fee7c2ec591e7024ee57520` and its matching kColorPicker into
+  a private prefix, then builds KSnip with both bundled-library options OFF.
+  The local equivalent passes: build/install the original editor into
+  `build-memory/legacy-editor-prefix`, configure KSnip in `build-memory-legacy`
+  with both `USE_SUBMODULE_*` options OFF and the private dependency prefixes,
+  then `nice -n 10 taskset -c 0-3 cmake --build build-memory-legacy --target
+  ksnip --parallel 4` (185 application build steps). A fresh shallow public fetch
+  also proves the old SHA is reachable and its public header has no backing
+  capability macro. Workflow YAML and every compatibility shell script parse.
 
 ## Controlled Memory Evidence
 

@@ -27,7 +27,7 @@ jobs:
           - qt: 5
             library: bundled
           - qt: 6
-            library: system
+            library: installed-legacy
     defaults:
       run:
         shell: bash
@@ -43,14 +43,35 @@ jobs:
           if [ "$qt" = 5 ]; then
             dnf install -y 'cmake(Qt5X11Extras)'
           else
-            dnf install -y 'cmake(Qt6GuiPrivate)' 'cmake(Qt6Concurrent)' \
-              'cmake(kImageAnnotator-Qt6)' 'cmake(kColorPicker-Qt6)'
+            dnf install -y 'cmake(Qt6GuiPrivate)' 'cmake(Qt6Concurrent)'
           fi
       - name: Checkout pinned source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           submodules: recursive
+      - name: Install genuine pre-backing editor for compatibility
+        if: matrix.library == 'installed-legacy'
+        run: |
+          set -euo pipefail
+          prefix="$PWD/legacy-editor-prefix"
+          cmake -S libraries/kColorPicker -B build-legacy-colorpicker -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release -DBUILD_WITH_QT6=ON -DBUILD_TESTS=OFF \
+            -DBUILD_EXAMPLE=OFF -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX:PATH="$prefix"
+          cmake --build build-legacy-colorpicker --parallel 4
+          cmake --install build-legacy-colorpicker
+          # Fedora 44 ships 0.7.0, below KSnip's existing 0.7.1 minimum. Build
+          # the actual pre-feature revision, not a macro-disabled new header.
+          legacy=7eedc8975fe447761fee7c2ec591e7024ee57520
+          git -C libraries/kImageAnnotator fetch --no-tags --depth=1 origin "$legacy"
+          mkdir legacy-editor-source
+          git -C libraries/kImageAnnotator archive "$legacy" | tar -x -C legacy-editor-source
+          cmake -S legacy-editor-source -B build-legacy-editor -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release -DBUILD_WITH_QT6=ON -DBUILD_TESTS=OFF \
+            -DBUILD_EXAMPLE=OFF -DBUILD_SHARED_LIBS=OFF \
+            -DCMAKE_PREFIX_PATH:PATH="$prefix" -DCMAKE_INSTALL_PREFIX:PATH="$prefix"
+          cmake --build build-legacy-editor --parallel 4
+          cmake --install build-legacy-editor
       - name: Compile compatibility path
         run: |
           set -euo pipefail
@@ -62,6 +83,7 @@ jobs:
           fi
           cmake -S . -B build-compatibility -G Ninja \
             -DCMAKE_BUILD_TYPE=Release -DBUILD_WITH_QT6="$qt6" -DBUILD_TESTS=OFF \
+            -DCMAKE_PREFIX_PATH:PATH="$PWD/legacy-editor-prefix" \
             -DUSE_SUBMODULE_KCOLORPICKER="$bundled" -DUSE_SUBMODULE_KIMAGEANNOTATOR="$bundled"
           cmake --build build-compatibility --target ksnip --parallel 4
 
