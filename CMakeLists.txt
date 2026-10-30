@@ -69,7 +69,7 @@ configure_file(src/BuildConfig.h.in ${CMAKE_CURRENT_BINARY_DIR}/src/BuildConfig.
 
 if (BUILD_WITH_QT6)
 	set(QT_MAJOR_VERSION 6)
-	list(APPEND QT_COMPONENTS GuiPrivate)
+	list(APPEND QT_COMPONENTS Gui)
 else()
 	set(QT_MAJOR_VERSION 5)
 endif()
@@ -89,6 +89,10 @@ if (BUILD_TESTS)
 endif()
 
 find_package(Qt${QT_MAJOR_VERSION} ${QT_MIN_VERSION} REQUIRED ${QT_COMPONENTS})
+
+if (BUILD_WITH_QT6 AND NOT TARGET Qt6::GuiPrivate)
+	message(FATAL_ERROR "Qt6::GuiPrivate is required for Qt 6 builds")
+endif()
 
 if (APPLE AND BUILD_WITH_QT6)
 	get_target_property(_qt_gui_libs Qt6::Gui INTERFACE_LINK_LIBRARIES)
