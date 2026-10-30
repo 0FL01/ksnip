@@ -91,7 +91,7 @@ endif()
 find_package(Qt${QT_MAJOR_VERSION} ${QT_MIN_VERSION} REQUIRED ${QT_COMPONENTS})
 
 if (BUILD_WITH_QT6 AND NOT TARGET Qt6::GuiPrivate)
-	message(FATAL_ERROR "Qt6::GuiPrivate is required for Qt 6 builds")
+	find_package(Qt6 ${QT_MIN_VERSION} REQUIRED COMPONENTS GuiPrivate)
 endif()
 
 if (APPLE AND BUILD_WITH_QT6)
