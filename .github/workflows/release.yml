@@ -395,7 +395,7 @@ jobs:
               rpm -V ksnip
               ;;
             opensuse)
-              zypper --non-interactive install "/assets/$PACKAGE"
+              zypper --non-interactive install --allow-unsigned-rpm "/assets/$PACKAGE"
               test "$(rpm -qp --qf '%{ARCH}' "/assets/$PACKAGE")" = x86_64
               rpm -V ksnip
               ;;
