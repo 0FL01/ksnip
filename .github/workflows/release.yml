@@ -1,0 +1,546 @@
+name: Release
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  changes:
+    runs-on: ubuntu-24.04
+    outputs:
+      publish: ${{ steps.diff.outputs.publish }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Detect release-relevant changes in this push
+        id: diff
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          base=$BEFORE_SHA
+          if [[ -z "$base" || "$base" =~ ^0+$ ]]; then
+            base=$(git hash-object -w -t tree /dev/null)
+          elif ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            git fetch --no-tags origin "$base"
+          fi
+          status=0
+          git diff --quiet --no-renames "$base" "$GITHUB_SHA" -- . \
+            ':(exclude,icase,glob)**/*.md' \
+            ':(exclude,icase,glob)**/*.markdown' || status=$?
+          case "$status" in
+            0) echo 'publish=false' >> "$GITHUB_OUTPUT" ;;
+            1) echo 'publish=true' >> "$GITHUB_OUTPUT" ;;
+            *) exit "$status" ;;
+          esac
+
+  release:
+    needs: changes
+    if: needs.changes.outputs.publish == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    permissions:
+      contents: write
+    concurrency:
+      group: release-${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - name: Checkout exact source and submodules
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Restore Fedora compiler cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .ccache
+          key: rpm-ccache-v3-fedora44-x86_64-gcc-${{ hashFiles('.github/scripts/linux/rpm/**', 'CMakeLists.txt', 'cmake/**', 'icons/**', 'src/**', 'tests/**', 'libraries/kColorPicker/**', 'libraries/kImageAnnotator/**') }}
+          restore-keys: rpm-ccache-v3-fedora44-x86_64-gcc-
+
+      - name: Restore pinned OCR source cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .ocr-source-cache
+          key: rpm-ocr-sources-v1-${{ hashFiles('.github/scripts/linux/rpm/ocr-sources.lock') }}
+
+      - name: Prepare sources and release metadata
+        id: meta
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(uname -m)" = x86_64
+          root="$RUNNER_TEMP/ksnip-release"
+          mkdir -p "$root/assets" "$root/fedora" "$root/compat/legacy" .ccache .ocr-source-cache
+          version=$(sed -nE 's/^project\(ksnip .* VERSION ([0-9.]+)\)$/\1/p' CMakeLists.txt)
+          test -n "$version"
+          count=$(git rev-list --count "$GITHUB_SHA")
+          short=${GITHUB_SHA:0:8}
+          tag="release-${GITHUB_SHA:0:12}"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            test "$(git rev-parse "refs/tags/$tag^{commit}")" = "$GITHUB_SHA"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          {
+            echo "RELEASE_ROOT=$root"
+            echo "VERSION=$version"
+            echo "COMMIT_COUNT=$count"
+            echo "SHORT_COMMIT=$short"
+            echo "SOURCE_DATE_EPOCH=$(git show -s --format=%ct "$GITHUB_SHA")"
+          } >> "$GITHUB_ENV"
+          bash .github/scripts/linux/rpm/fetch-ocr-sources.sh "$GITHUB_WORKSPACE/.ocr-source-cache"
+          git -C libraries/kImageAnnotator archive 7eedc8975fe447761fee7c2ec591e7024ee57520 |
+            tar -x -C "$root/compat/legacy"
+
+      - name: Check Qt 5 and legacy Qt 6 editor compatibility
+        run: |
+          set -euo pipefail
+          docker run --rm -i --volume "$GITHUB_WORKSPACE:/src:ro" \
+            --volume "$RELEASE_ROOT/compat:/work" fedora:44 bash -seuo pipefail <<'FEDORA_COMPAT'
+          dnf install -y cmake gcc-c++ ninja-build extra-cmake-modules libX11-devel libxcb-devel \
+            'cmake(Qt5Widgets)' 'cmake(Qt5Network)' 'cmake(Qt5Xml)' 'cmake(Qt5PrintSupport)' \
+            'cmake(Qt5Svg)' 'cmake(Qt5DBus)' 'cmake(Qt5LinguistTools)' 'cmake(Qt5X11Extras)' \
+            'cmake(Qt6Widgets)' 'cmake(Qt6Network)' 'cmake(Qt6Xml)' 'cmake(Qt6PrintSupport)' \
+            'cmake(Qt6Svg)' 'cmake(Qt6DBus)' 'cmake(Qt6LinguistTools)' 'cmake(Qt6GuiPrivate)' \
+            'cmake(Qt6Concurrent)'
+          cmake -S /src -B /work/qt5 -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_WITH_QT6=OFF -DBUILD_TESTS=OFF \
+            -DUSE_SUBMODULE_KCOLORPICKER=ON -DUSE_SUBMODULE_KIMAGEANNOTATOR=ON
+          cmake --build /work/qt5 --target ksnip --parallel 4
+          prefix=/work/prefix
+          cmake -S /src/libraries/kColorPicker -B /work/colorpicker -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release -DBUILD_WITH_QT6=ON -DBUILD_TESTS=OFF \
+            -DBUILD_EXAMPLE=OFF -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX="$prefix"
+          cmake --build /work/colorpicker --parallel 4
+          cmake --install /work/colorpicker
+          cmake -S /work/legacy -B /work/editor -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release -DBUILD_WITH_QT6=ON -DBUILD_TESTS=OFF \
+            -DBUILD_EXAMPLE=OFF -DBUILD_SHARED_LIBS=OFF \
+            -DCMAKE_PREFIX_PATH="$prefix" -DCMAKE_INSTALL_PREFIX="$prefix"
+          cmake --build /work/editor --parallel 4
+          cmake --install /work/editor
+          cmake -S /src -B /work/qt6 -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_WITH_QT6=ON -DBUILD_TESTS=OFF -DCMAKE_PREFIX_PATH="$prefix" \
+            -DUSE_SUBMODULE_KCOLORPICKER=OFF -DUSE_SUBMODULE_KIMAGEANNOTATOR=OFF
+          cmake --build /work/qt6 --target ksnip --parallel 4
+          rm -rf /work/qt5 /work/qt6 /work/colorpicker /work/editor /work/prefix /work/legacy
+          FEDORA_COMPAT
+
+      - name: Prepare Fedora source RPM inputs
+        run: |
+          set -euo pipefail
+          export LC_ALL=C
+          topdir="$RELEASE_ROOT/fedora"
+          mkdir -p "$topdir"/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
+          git ls-files --recurse-submodules -z | sort -z |
+            tar --create --null --no-recursion --files-from=- --format=gnu \
+              --owner=0 --group=0 --numeric-owner --mtime="@$SOURCE_DATE_EPOCH" \
+              --transform="s|^|ksnip-${VERSION}/|" |
+            gzip -9n > "$topdir/SOURCES/ksnip-${VERSION}.tar.gz"
+          touch -d "@$SOURCE_DATE_EPOCH" "$topdir/SOURCES/ksnip-${VERSION}.tar.gz"
+          sed -e "s/@COMMIT@/${GITHUB_SHA}/g" \
+              -e "s/@SHORT_COMMIT@/${SHORT_COMMIT}/g" \
+              -e "s/@COMMIT_COUNT@/${COMMIT_COUNT}/g" \
+              -e "s/@VERSION@/${VERSION}/g" \
+              -e "s/@RELEASE@/1.${COMMIT_COUNT}.g${SHORT_COMMIT}/g" \
+              .github/scripts/linux/rpm/ksnip.spec.in > "$topdir/SPECS/ksnip.spec"
+          cp -a .ocr-source-cache/. "$topdir/SOURCES/"
+
+      - name: Build, test and validate Fedora RPM and SRPM
+        run: |
+          set -euo pipefail
+          docker run --rm -i --volume "$RELEASE_ROOT/fedora:/work" \
+            --volume "$RELEASE_ROOT/assets:/assets" --volume "$GITHUB_WORKSPACE/.ccache:/ccache" \
+            --env SOURCE_DATE_EPOCH --env HOST_UID="$(id -u)" --env HOST_GID="$(id -g)" \
+            fedora:44 bash -seuo pipefail <<'FEDORA_RPM'
+          trap 'chown -R "$HOST_UID:$HOST_GID" /work /assets /ccache' EXIT
+          dnf install -y binutils ccache coreutils cpio curl dnf5-plugins file findutils \
+            git-core gzip rpm-build sed tar
+          export CCACHE_BASEDIR=/work CCACHE_COMPILERCHECK=content CCACHE_DIR=/ccache CCACHE_MAXSIZE=2G
+          export PATH="/usr/lib64/ccache:$PATH"
+          ccache --max-size "$CCACHE_MAXSIZE"
+          ccache --zero-stats
+          test "$(rpm -E '%fedora')" = 44
+          test "$(uname -m)" = x86_64
+          dnf builddep -y /work/SPECS/ksnip.spec
+          rpmbuild -ba --define '_topdir /work' --define '_smp_build_ncpus 4' /work/SPECS/ksnip.spec
+          ccache --show-stats
+          mapfile -t rpms < <(find /work/RPMS -type f -name 'ksnip-[0-9]*.x86_64.rpm' | sort)
+          mapfile -t srpms < <(find /work/SRPMS -type f -name 'ksnip-*.src.rpm' | sort)
+          test "${#rpms[@]}" -eq 1 && test "${#srpms[@]}" -eq 1
+          if find /work/RPMS -type f -name 'ksnip-debug*.rpm' -print -quit | grep -q .; then exit 1; fi
+          rpm -K "${rpms[0]}" "${srpms[0]}"
+          rpm -qpl "${rpms[0]}" > /tmp/payload
+          rpm -qp --requires "${rpms[0]}" > /tmp/requires
+          rpm -qpl "${srpms[0]}" > /tmp/source-payload
+          for file in /usr/bin/ksnip /usr/share/applications/org.ksnip.ksnip.desktop \
+            /usr/share/metainfo/org.ksnip.ksnip.appdata.xml /usr/share/icons/hicolor/scalable/apps/ksnip.svg \
+            /usr/share/ksnip/translations/kImageAnnotator_da.qm; do grep -Fx "$file" /tmp/payload; done
+          ! grep -Fq '/usr/share/kImageAnnotator/' /tmp/payload
+          ! grep -Eq '(^|/)(include|cmake)/|\.a$|\.(onnx|ort|pdiparams|traineddata)$' /tmp/payload
+          ! grep -Eqi 'libQt5|Qt_5|onnxruntime|opencv|paddle|tesseract' /tmp/requires
+          for source in onnxruntime-v1.27.0.tar.gz opencv-4.12.0.tar.gz v21.12.zip; do
+            grep -F "$source" /tmp/source-payload
+          done
+          dnf install -y --installroot /tmp/ksnip-installroot --use-host-config --releasever 44 \
+            --setopt=install_weak_deps=False "${rpms[0]}"
+          echo '%_install_langs all' > /etc/rpm/macros.image-language-conf
+          dnf install -y kimageannotator-common "${rpms[0]}"
+          rpm -V ksnip
+          test "$(rpm -qf /usr/bin/ksnip)" = "$(rpm -q ksnip)"
+          test "$(rpm -qf /usr/share/kImageAnnotator/translations/kImageAnnotator_da.qm)" = "$(rpm -q kimageannotator-common)"
+          ldd /usr/bin/ksnip > /tmp/ldd
+          ! grep -Eqi 'not found|onnxruntime|opencv|paddle|tesseract' /tmp/ldd
+          ! readelf -d /usr/bin/ksnip | grep -E '(RPATH|RUNPATH)'
+          strings /usr/bin/ksnip | grep -F 'Recognize Text in Area'
+          QT_QPA_PLATFORM=offscreen /usr/bin/ksnip --version
+          desktop-file-validate /usr/share/applications/org.ksnip.ksnip.desktop
+          appstreamcli validate --no-net /usr/share/metainfo/org.ksnip.ksnip.appdata.xml
+          install -m 0755 /usr/bin/ksnip /assets/ksnip-fedora44-linux-x86_64
+          cp "${rpms[0]}" /assets/ksnip-fedora44-x86_64.rpm
+          cp "${srpms[0]}" /assets/ksnip-fedora44.src.rpm
+          rm -rf /work/BUILD /work/BUILDROOT /work/RPMS /work/SOURCES /work/SPECS /work/SRPMS
+          FEDORA_RPM
+
+      - name: Build and test Debian, Ubuntu, openSUSE and Arch packages
+        run: |
+          set -euo pipefail
+          for target in debian ubuntu opensuse arch; do
+            case "$target" in
+              debian) image=debian:13 ;;
+              ubuntu) image=ubuntu:26.04 ;;
+              opensuse) image=opensuse/leap:16.0 ;;
+              arch) image=archlinux/archlinux:base-devel-20261025.0.616225 ;;
+            esac
+            work=$(mktemp -d "$RUNNER_TEMP/ksnip-${target}.XXXXXX")
+            docker run --rm -i --volume "$GITHUB_WORKSPACE:/src:ro" --volume "$work:/work" \
+              --volume "$GITHUB_WORKSPACE/.ocr-source-cache:/ocr:ro" --volume "$RELEASE_ROOT/assets:/assets" \
+              --env TARGET="$target" --env VERSION --env COMMIT_COUNT --env SHORT_COMMIT \
+              --env GITHUB_SHA --env SOURCE_DATE_EPOCH --env HOST_UID="$(id -u)" --env HOST_GID="$(id -g)" \
+              "$image" bash -seuo pipefail <<'BUILD_PACKAGE'
+          trap 'chown -R "$HOST_UID:$HOST_GID" /work /assets' EXIT
+          case "$TARGET" in
+            debian|ubuntu)
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update
+              apt-get install -y --no-install-recommends build-essential cmake ninja-build extra-cmake-modules \
+                qt6-base-dev qt6-base-private-dev qt6-svg-dev qt6-tools-dev qt6-tools-dev-tools \
+                libx11-dev libxcb1-dev libxcb-xfixes0-dev libxcb-render0-dev libxcb-shape0-dev \
+                libgtest-dev libgmock-dev dbus python3 python3-venv python3-packaging zlib1g-dev \
+                ccache curl unzip file desktop-file-utils appstream dpkg-dev binutils \
+                qt6-qpa-plugins qt6-wayland qt6-svg-plugins
+              ;;
+            opensuse)
+              zypper --non-interactive install cmake gcc-c++ ninja kf6-extra-cmake-modules \
+                'cmake(Qt6Widgets)' 'cmake(Qt6Network)' 'cmake(Qt6Xml)' 'cmake(Qt6PrintSupport)' \
+                'cmake(Qt6Svg)' 'cmake(Qt6DBus)' 'cmake(Qt6LinguistTools)' 'cmake(Qt6GuiPrivate)' \
+                'cmake(Qt6Concurrent)' 'cmake(Qt6Test)' 'pkgconfig(x11)' 'pkgconfig(xcb-xfixes)' \
+                gtest gmock dbus-1 python3 python313-packaging zlib-devel ccache curl unzip file \
+                desktop-file-utils AppStream rpm-build qt6-wayland
+              ;;
+            arch)
+              pacman -Syu --noconfirm --needed cmake ninja gcc git ccache extra-cmake-modules libx11 libxcb \
+                qt6-base qt6-svg qt6-tools gtest dbus python python-packaging zlib curl unzip file \
+                desktop-file-utils appstream qt6-wayland
+              ;;
+          esac
+          python3 -m venv --system-site-packages --without-pip /work/python
+          unzip -q /ocr/v23.5.26.zip 'flatbuffers-23.5.26/python/flatbuffers/*' -d /work
+          site=$(/work/python/bin/python -c 'import sysconfig; print(sysconfig.get_path("purelib"))')
+          cp -a /work/flatbuffers-23.5.26/python/flatbuffers "$site/"
+          export KSNIP_OCR_PYTHON=/work/python/bin/python
+          env -u PYTHONPATH -u CONDA_PREFIX -u CMAKE_PREFIX_PATH "$KSNIP_OCR_PYTHON" -c 'import flatbuffers, packaging'
+          bash /src/.github/scripts/linux/rpm/build-ocr-dependencies.sh /ocr /work/ocr 4
+          cmake -S /src -B /work/build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_INSTALL_LIBDIR=lib64 \
+            -DBUILD_WITH_QT6=ON -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTS=ON \
+            -DKIMAGEANNOTATOR_BUILD_TESTS=ON -DENABLE_BUILTIN_OCR=ON \
+            -DUSE_SUBMODULE_KCOLORPICKER=ON -DUSE_SUBMODULE_KIMAGEANNOTATOR=ON \
+            -DKSNIP_OCR_ORT_BUILD=/work/ocr/ort/Release \
+            -DKSNIP_OCR_ORT_INCLUDE_DIR=/work/ocr/src/onnxruntime-1.27.0/include/onnxruntime/core/session \
+            -DKSNIP_OCR_OPENCV_PREFIX=/work/ocr/opencv-prefix \
+            -DKSNIP_KIMAGEANNOTATOR_LANG_INSTALL_DIR=/usr/share/ksnip/translations \
+            -DVERSION_SUFIX="${COMMIT_COUNT}.g${SHORT_COMMIT}" -DBUILD_NUMBER="$GITHUB_SHA"
+          cmake --build /work/build --parallel 4
+          QT_QPA_PLATFORM=offscreen ctest --test-dir /work/build --output-on-failure --no-tests=error -j1
+          DESTDIR=/work/stage cmake --install /work/build
+          stage=/work/stage
+          mv "$stage"/usr/share/kImageAnnotator/translations/* "$stage/usr/share/ksnip/translations/"
+          rmdir "$stage/usr/share/kImageAnnotator/translations" "$stage/usr/share/kImageAnnotator"
+          rm -f "$stage/usr/lib64/libkColorPicker.a" "$stage/usr/lib64/libkImageAnnotator.a"
+          rm -rf "$stage/usr/include/kColorPicker-Qt6" "$stage/usr/include/kImageAnnotator-Qt6" \
+            "$stage/usr/lib64/cmake/kColorPicker-Qt6" "$stage/usr/lib64/cmake/kImageAnnotator-Qt6"
+          install -Dpm0644 /src/LICENSE.txt "$stage/usr/share/licenses/ksnip/GPL-3.0.txt"
+          install -Dpm0644 /src/libraries/kColorPicker/LICENSE "$stage/usr/share/licenses/ksnip/kColorPicker-LGPL-3.0.txt"
+          install -Dpm0644 /src/libraries/kImageAnnotator/LICENSE "$stage/usr/share/licenses/ksnip/kImageAnnotator-LGPL-3.0.txt"
+          install -Dpm0644 /src/src/gui/ocr/MODEL_PROVENANCE.md "$stage/usr/share/licenses/ksnip/OCR-MODEL-PROVENANCE.md"
+          cp -a /src/src/gui/ocr/licenses/. "$stage/usr/share/licenses/ksnip/"
+          desktop-file-validate "$stage/usr/share/applications/org.ksnip.ksnip.desktop"
+          appstreamcli validate --no-net "$stage/usr/share/metainfo/org.ksnip.ksnip.appdata.xml"
+          strings "$stage/usr/bin/ksnip" | grep -F 'Recognize Text in Area'
+          case "$TARGET" in
+            debian|ubuntu)
+              mkdir -p /work/debian "$stage/DEBIAN"
+              cp /src/.github/scripts/linux/deb/debian/control /work/debian/control
+              cd /work
+              dependencies=$(dpkg-shlibdeps -O "$stage/usr/bin/ksnip" | sed 's/^shlibs:Depends=//')
+              test -n "$dependencies"
+              cat > "$stage/DEBIAN/control" <<CONTROL
+          Package: ksnip
+          Version: ${VERSION}-1.${COMMIT_COUNT}+g${SHORT_COMMIT}
+          Architecture: amd64
+          Maintainer: Damir Porobic <damir.porobic@gmx.com>
+          Homepage: https://github.com/0FL01/ksnip
+          Depends: $dependencies, hicolor-icon-theme, qt6-qpa-plugins, qt6-wayland, qt6-svg-plugins
+          Description: Screenshot and annotation tool
+           KSnip includes the pinned editor and offline area OCR.
+          CONTROL
+              dpkg-deb --root-owner-group --build "$stage" "/assets/ksnip-${TARGET}-amd64.deb"
+              ;;
+            opensuse)
+              mkdir -p /work/rpmbuild/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
+              tar -C "$stage" -czf /work/rpmbuild/SOURCES/ksnip-stage.tar.gz usr
+              cat > /work/rpmbuild/SPECS/ksnip.spec <<SPEC
+          %global debug_package %{nil}
+          Name: ksnip
+          Epoch: 1
+          Version: ${VERSION}
+          Release: 1.${COMMIT_COUNT}.g${SHORT_COMMIT}
+          Summary: Screenshot and annotation tool
+          License: GPL-2.0-or-later AND LGPL-2.0-or-later AND LGPL-3.0-or-later AND FSFAP AND Apache-2.0 AND MIT AND BSL-1.0 AND BSD-2-Clause AND BSD-3-Clause AND MPL-2.0
+          URL: https://github.com/0FL01/ksnip
+          Source0: ksnip-stage.tar.gz
+          Requires: hicolor-icon-theme, qt6-wayland
+          %description
+          KSnip includes the pinned editor and offline area OCR.
+          %install
+          mkdir -p %{buildroot}
+          tar -xf %{SOURCE0} -C %{buildroot}
+          %files
+          %license /usr/share/licenses/ksnip
+          /usr/bin/ksnip
+          /usr/share/applications/org.ksnip.ksnip.desktop
+          /usr/share/icons/hicolor/scalable/apps/ksnip.svg
+          /usr/share/metainfo/org.ksnip.ksnip.appdata.xml
+          /usr/share/ksnip/translations
+          SPEC
+              rpmbuild -bb --define '_topdir /work/rpmbuild' /work/rpmbuild/SPECS/ksnip.spec
+              mapfile -t rpms < <(find /work/rpmbuild/RPMS -name 'ksnip-*.x86_64.rpm')
+              test "${#rpms[@]}" -eq 1
+              cp "${rpms[0]}" /assets/ksnip-opensuse16-x86_64.rpm
+              ;;
+            arch)
+              ldd "$stage/usr/bin/ksnip" > /work/ldd
+              ! grep -q 'not found' /work/ldd
+              awk '/=> \// { print $3 } /^[[:space:]]*\// { print $1 }' /work/ldd |
+                while read -r lib; do pacman -Qqo "$(readlink -f "$lib")"; done | sort -u > /work/dependencies
+              cp /src/packaging/nfpm.yaml /work/nfpm.yaml
+              echo 'depends:' >> /work/nfpm.yaml
+              while read -r dependency; do
+                if [ "$dependency" != qt6-base ]; then printf "  - '%s'\n" "$dependency" >> /work/nfpm.yaml; fi
+              done < /work/dependencies
+              qtversion=$(pacman -Q qt6-base | awk '{print $2}')
+              printf "  - 'qt6-base=%s'\n  - 'qt6-wayland'\n  - 'hicolor-icon-theme'\n" "$qtversion" >> /work/nfpm.yaml
+              ;;
+          esac
+          rm -rf /work/ocr /work/build /work/python /work/flatbuffers-23.5.26
+          BUILD_PACKAGE
+            if [ "$target" = arch ]; then
+              docker run --rm --user "$(id -u):$(id -g)" --volume "$work:/work" \
+                --volume "$RELEASE_ROOT/assets:/assets" --workdir /work \
+                --env VERSION --env PACKAGE_RELEASE="$COMMIT_COUNT" goreleaser/nfpm:v2.48.0 \
+                package --config /work/nfpm.yaml --packager archlinux \
+                --target /assets/ksnip-arch-x86_64.pkg.tar.zst
+            fi
+            rm -rf "$work"
+          done
+
+      - name: Install and smoke-test every package in a clean container
+        run: |
+          set -euo pipefail
+          for target in debian ubuntu fedora opensuse arch; do
+            case "$target" in
+              debian) image=debian:13; package=ksnip-debian-amd64.deb ;;
+              ubuntu) image=ubuntu:26.04; package=ksnip-ubuntu-amd64.deb ;;
+              fedora) image=fedora:44; package=ksnip-fedora44-x86_64.rpm ;;
+              opensuse) image=opensuse/leap:16.0; package=ksnip-opensuse16-x86_64.rpm ;;
+              arch) image=archlinux/archlinux:base-devel-20261025.0.616225; package=ksnip-arch-x86_64.pkg.tar.zst ;;
+            esac
+            test -s "$RELEASE_ROOT/assets/$package"
+            docker run --rm -i --volume "$RELEASE_ROOT/assets:/assets:ro" --env TARGET="$target" \
+              --env PACKAGE="$package" "$image" bash -seuo pipefail <<'VERIFY_PACKAGE'
+          case "$TARGET" in
+            debian|ubuntu)
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update
+              apt-get install -y --no-install-recommends "/assets/$PACKAGE"
+              test "$(dpkg-deb -f "/assets/$PACKAGE" Architecture)" = amd64
+              dpkg-query -L ksnip
+              ;;
+            fedora)
+              dnf install -y "/assets/$PACKAGE"
+              test "$(rpm -qp --qf '%{ARCH}' "/assets/$PACKAGE")" = x86_64
+              rpm -V ksnip
+              ;;
+            opensuse)
+              zypper --non-interactive install "/assets/$PACKAGE"
+              test "$(rpm -qp --qf '%{ARCH}' "/assets/$PACKAGE")" = x86_64
+              rpm -V ksnip
+              ;;
+            arch)
+              pacman -Syu --noconfirm
+              pacman -U --noconfirm "/assets/$PACKAGE"
+              test "$(pacman -Q ksnip | awk '{print $1}')" = ksnip
+              test "$(pacman -Qip "/assets/$PACKAGE" | sed -n 's/^Architecture[[:space:]]*:[[:space:]]*//p')" = x86_64
+              bsdtar -tf "/assets/$PACKAGE" | grep -Fx .PKGINFO
+              bsdtar -tf "/assets/$PACKAGE" | grep -Fx .MTREE
+              ;;
+          esac
+          ldd /usr/bin/ksnip > /tmp/ldd
+          ! grep -Eqi 'not found|onnxruntime|opencv|paddle|tesseract' /tmp/ldd
+          QT_QPA_PLATFORM=offscreen /usr/bin/ksnip --version
+          test -s /usr/share/ksnip/translations/kImageAnnotator_da.qm
+          test -s /usr/share/icons/hicolor/scalable/apps/ksnip.svg
+          test -s /usr/share/metainfo/org.ksnip.ksnip.appdata.xml
+          desktop=/usr/share/applications/org.ksnip.ksnip.desktop
+          grep -Fx 'Exec=/usr/bin/ksnip %F' "$desktop"
+          grep -Fx 'Exec=/usr/bin/ksnip -f -c' "$desktop"
+          grep -Fx 'X-KDE-DBUS-Restricted-Interfaces=org.kde.kwin.Screenshot,org.kde.KWin.ScreenShot2' "$desktop"
+          ! grep -Eq '^Exec=ksnip([[:space:]]|$)' "$desktop"
+          for plugin in libqoffscreen.so libqxcb.so 'libqwayland*.so'; do
+            find /usr/lib /usr/lib64 -name "$plugin" -print -quit 2>/dev/null | grep -q .
+          done
+          VERIFY_PACKAGE
+          done
+          test -s "$RELEASE_ROOT/assets/ksnip-fedora44-linux-x86_64"
+          test -s "$RELEASE_ROOT/assets/ksnip-fedora44.src.rpm"
+          file "$RELEASE_ROOT/assets/ksnip-fedora44-linux-x86_64" | grep -q 'ELF 64-bit.*x86-64'
+          test "$(find "$RELEASE_ROOT/assets" -maxdepth 1 -type f | wc -l)" -eq 7
+
+      - name: Create notes for the exact commit and assets
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          RELEASE_TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          set -euo pipefail
+          previous=''
+          best=''
+          while read -r tag; do
+            commit=$(git rev-parse "refs/tags/$tag^{commit}")
+            [ "$commit" = "$GITHUB_SHA" ] && continue
+            count=$(git rev-list --count "$commit..$GITHUB_SHA")
+            if [[ -z "$best" || "$count" -lt "$best" ]]; then previous=$tag; best=$count; fi
+          done < <(git tag --merged "$GITHUB_SHA" --list 'release-*')
+          base=$previous
+          if [[ -z "$base" && -n "$BEFORE_SHA" && ! "$BEFORE_SHA" =~ ^0+$ ]]; then
+            if ! git cat-file -e "$BEFORE_SHA^{commit}" 2>/dev/null; then git fetch --no-tags origin "$BEFORE_SHA"; fi
+            base=$BEFORE_SHA
+          fi
+          range=$GITHUB_SHA
+          [[ -z "$base" ]] || range="$base..$GITHUB_SHA"
+          url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
+          {
+            printf 'Commit: [%s](%s/commit/%s) %s\n\n' "$GITHUB_SHA" "$url" "$GITHUB_SHA" "$(git show -s --format=%s "$GITHUB_SHA")"
+            if [[ -n "$previous" ]]; then
+              printf 'Previous release: [%s](%s/releases/tag/%s)\n\n' "$previous" "$url" "$previous"
+            elif [[ -n "$base" ]]; then
+              printf 'Previous commit: [%s](%s/commit/%s)\n\n' "$base" "$url" "$base"
+            else
+              printf 'Initial release.\n\n'
+            fi
+            printf 'New commits: %s\n\n' "$(git rev-list --count "$range")"
+            git log --reverse --format="- [%h]($url/commit/%H) %s" "$range"
+            if [[ -n "$base" ]]; then printf '\n[Full diff](%s/compare/%s...%s)\n' "$url" "$base" "$GITHUB_SHA"; fi
+            printf '\n## Artifacts\n\n'
+            for asset in "$RELEASE_ROOT"/assets/*; do
+              test -f "$asset" && test -s "$asset"
+              printf -- '- `%s`\n' "$(basename "$asset")"
+            done
+            printf '\nThe Fedora 44 ELF is dynamically linked; it requires Fedora Qt and system libraries. Install the Fedora RPM for desktop integration, translations and KWin permissions.\n'
+          } > "$RELEASE_ROOT/notes.md"
+          test "$(wc -c < "$RELEASE_ROOT/notes.md")" -lt 125000
+
+      - name: Check an existing release and tag before upload
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          RELEASE_TAG: ${{ steps.meta.outputs.tag }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const tag = process.env.RELEASE_TAG;
+            const expected = new Set(['ksnip-fedora44-linux-x86_64', 'ksnip-fedora44-x86_64.rpm',
+              'ksnip-fedora44.src.rpm', 'ksnip-debian-amd64.deb', 'ksnip-ubuntu-amd64.deb',
+              'ksnip-opensuse16-x86_64.rpm', 'ksnip-arch-x86_64.pkg.tar.zst']);
+            let tagExists = false;
+            try {
+              let ref = (await github.rest.git.getRef({ owner, repo, ref: `tags/${tag}` })).data.object;
+              while (ref.type === 'tag') ref = (await github.rest.git.getTag({ owner, repo, tag_sha: ref.sha })).data.object;
+              if (ref.type !== 'commit' || ref.sha !== context.sha) throw new Error('Release tag points to another commit');
+              tagExists = true;
+            } catch (error) { if (error.status !== 404) throw error; }
+            // Drafts are not returned by getReleaseByTag.
+            const releases = (await github.paginate(github.rest.repos.listReleases, { owner, repo })).filter(release => release.tag_name === tag);
+            if (releases.length > 1) throw new Error('Multiple releases use the same tag');
+            if (releases.length === 1) {
+              const release = releases[0];
+              if (!tagExists && release.target_commitish !== context.sha) throw new Error('Draft targets another commit');
+              const assets = await github.paginate(github.rest.repos.listReleaseAssets, { owner, repo, release_id: release.id });
+              if (assets.some(asset => !expected.has(asset.name))) throw new Error('Existing release contains unexpected assets');
+              if (!release.draft) await github.rest.repos.updateRelease({ owner, repo, release_id: release.id, draft: true });
+            }
+
+      - name: Upload verified assets to a draft
+        id: upload
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: ${{ steps.meta.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          body_path: ${{ env.RELEASE_ROOT }}/notes.md
+          files: ${{ env.RELEASE_ROOT }}/assets/*
+          draft: true
+          prerelease: true
+          make_latest: false
+          fail_on_unmatched_files: true
+
+      - name: Publish only the complete release
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          RELEASE_TAG: ${{ steps.meta.outputs.tag }}
+          RELEASE_ID: ${{ steps.upload.outputs.id }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const tag = process.env.RELEASE_TAG;
+            const release = (await github.rest.repos.getRelease({ owner, repo, release_id: Number(process.env.RELEASE_ID) })).data;
+            if (!release.draft || release.tag_name !== tag || release.target_commitish !== context.sha) {
+              throw new Error('Draft release does not target the requested commit');
+            }
+            try {
+              let ref = (await github.rest.git.getRef({ owner, repo, ref: `tags/${tag}` })).data.object;
+              while (ref.type === 'tag') ref = (await github.rest.git.getTag({ owner, repo, tag_sha: ref.sha })).data.object;
+              if (ref.type !== 'commit' || ref.sha !== context.sha) throw new Error('Release tag points to another commit');
+            } catch (error) { if (error.status !== 404) throw error; }
+            const expected = new Set(['ksnip-fedora44-linux-x86_64', 'ksnip-fedora44-x86_64.rpm',
+              'ksnip-fedora44.src.rpm', 'ksnip-debian-amd64.deb', 'ksnip-ubuntu-amd64.deb',
+              'ksnip-opensuse16-x86_64.rpm', 'ksnip-arch-x86_64.pkg.tar.zst']);
+            const assets = await github.paginate(github.rest.repos.listReleaseAssets, { owner, repo, release_id: release.id });
+            if (assets.length !== expected.size || assets.some(asset => !expected.has(asset.name) || asset.state !== 'uploaded' || !asset.size)) {
+              throw new Error('Release assets are incomplete or unexpected');
+            }
+            await github.rest.repos.updateRelease({ owner, repo, release_id: release.id, draft: false, prerelease: true, make_latest: 'false' });
+            let ref = (await github.rest.git.getRef({ owner, repo, ref: `tags/${tag}` })).data.object;
+            while (ref.type === 'tag') ref = (await github.rest.git.getTag({ owner, repo, tag_sha: ref.sha })).data.object;
+            if (ref.type !== 'commit' || ref.sha !== context.sha) throw new Error('Published tag points to another commit');

@@ -1,0 +1,16 @@
+name: ksnip
+arch: amd64
+platform: linux
+version: ${VERSION}
+version_schema: none
+release: ${PACKAGE_RELEASE}
+maintainer: Damir Porobic <damir.porobic@gmx.com>
+description: Screenshot and annotation tool
+homepage: https://github.com/0FL01/ksnip
+license: GPL-2.0-or-later AND LGPL-2.0-or-later AND LGPL-3.0-or-later AND FSFAP AND Apache-2.0 AND MIT AND BSL-1.0 AND BSD-2-Clause AND BSD-3-Clause AND MPL-2.0
+archlinux:
+  packager: Damir Porobic <damir.porobic@gmx.com>
+contents:
+  - src: /work/stage/usr/
+    dst: /usr/
+    type: tree

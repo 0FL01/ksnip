@@ -55,6 +55,7 @@ cmake -S "$opencv_source" -B "$opencv_build" -G Ninja \
 	-DCMAKE_BUILD_TYPE=Release \
 	-DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF \
 	-DCMAKE_INSTALL_PREFIX="$opencv_prefix" \
+	-DCMAKE_INSTALL_LIBDIR=lib64 \
 	-DBUILD_LIST=core,imgproc \
 	-DBUILD_SHARED_LIBS=OFF \
 	-DBUILD_DOCS=OFF \
